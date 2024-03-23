@@ -157,6 +157,7 @@ for epoch in range(num_epochs):
                       f"PSNR: {running_psnr / log_step:.4f}")
                 running_loss = 0.0
                 running_psnr = 0.0
+                running_ssim = 0.0
         # 打印验证结果
         print(f"Validation Results - Epoch: {epoch + 1}, Loss: {val_loss / len(val_dataloader):.4f}, "
               f"SSIM: {total_ssim / len(val_dataloader):.4f}, "
