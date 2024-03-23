@@ -7,8 +7,10 @@ from skimage.metrics import peak_signal_noise_ratio as psnr
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
+from MS_SSIM_L1_loss import MS_SSIM_L1_LOSS
 from dataset import SEN12MSCR_Dataset, get_filelists
-from model import CRHeader
+from model2 import CRHeader_L
+from ssim_tools import ssim
 
 transform = transforms.Compose([
     transforms.ToTensor(),
@@ -29,11 +31,11 @@ batch_size = 7
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-meta_learner = CRHeader(input_channels=13, output_channels=3).to(device)
+meta_learner = CRHeader_L(input_channels=13, output_channels=3).to(device)
 
 optimizer = optim.Adam(meta_learner.parameters(), lr=1e-4)
-criterion = torch.nn.L1Loss()
-
+# criterion = torch.nn.L1Loss()
+criterion = MS_SSIM_L1_LOSS()
 num_epochs = 15
 
 print('start training')
@@ -70,17 +72,16 @@ for epoch in range(num_epochs):
         targets_np = targets_rgb.cpu().detach().numpy()
 
         # 计算并更新SSIM和PSNR
-        # batch_ssim = np.mean(
-        #     [calculate_ssim(outputs_np, targets_np)(outputs_np[b], targets_np[b]) for b in range(outputs_np.shape[0])])
+        batch_ssim = ssim(outputs_rgb, targets_rgb)
         batch_psnr = np.mean([psnr(targets_np[b], outputs_np[b]) for b in range(outputs_np.shape[0])])
-        # running_ssim += batch_ssim
+        running_ssim += batch_ssim
         running_psnr += batch_psnr
 
         # 打印日志
         if (i + 1) % log_step == 0:
             print(f"Epoch [{epoch + 1}/{num_epochs}], Step [{i + 1}/{len(train_dataloader)}], "
                   f"Loss: {running_loss / log_step:.4f}, "
-                  # f"SSIM: {running_ssim / log_step:.4f}, "
+                  f"SSIM: {running_ssim / log_step:.4f}, "
                   f"PSNR: {running_psnr / log_step:.4f}")
             running_loss = 0.0
             running_ssim = 0.0
@@ -95,6 +96,7 @@ for epoch in range(num_epochs):
         val_loss, val_ssim, val_psnr = 0.0, 0.0, 0.0
         running_val_loss = 0.0
         total_psnr = 0.0
+        total_ssim = 0.0
         for i, images in enumerate(val_dataloader):
             inputs = images["input"].to(device)
             targets = images["target"].to(device)
@@ -109,23 +111,25 @@ for epoch in range(num_epochs):
             # 计算SSIM和PSNR
             outputs_np = outputs_rgb.cpu().numpy()
             targets_np = targets_rgb.cpu().numpy()
-            # val_ssim += np.mean(
-            #     [calculate_ssim(outputs_np, targets_np)(outputs_np[b], targets_np[b]) for b in range(outputs_np.shape[0])])
+            val_ssim = ssim(outputs_rgb, targets_rgb)
             val_psnr = np.mean([psnr(targets_np[b], outputs_np[b]) for b in range(outputs_np.shape[0])])
-            # running_ssim += batch_ssim
+            running_ssim += batch_ssim
             total_psnr += val_psnr
+            total_ssim += val_ssim
             running_psnr += val_psnr
+            running_ssim += val_ssim
 
             # 打印日志
             if (i + 1) % log_step == 0:
-                print(f"VAL: , Step [{i + 1}/{len(val_dataloader)}], "
+                print(f"VAL: Step [{i + 1}/{len(val_dataloader)}], "
                       f"Loss: {running_loss / log_step:.4f}, "
+                      f"SSIM: {running_ssim / len(val_dataloader):.4f}, "
                       f"PSNR: {running_psnr / log_step:.4f}")
                 running_loss = 0.0
                 running_psnr = 0.0
         # 打印验证结果
         print(f"Validation Results - Epoch: {epoch + 1}, Loss: {val_loss / len(val_dataloader):.4f}, "
-              # f"SSIM: {val_ssim / len(val_dataloader):.4f}, "
+              f"SSIM: {total_ssim / len(val_dataloader):.4f}, "
               f"PSNR: {total_psnr / len(val_dataloader):.4f}")
     meta_learner.train()  # 重新设置模型为训练
     if epoch % 1 == 0:

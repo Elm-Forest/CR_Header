@@ -2,10 +2,12 @@ import numpy as np
 import rasterio
 import torch
 from matplotlib import pyplot as plt
+from torch import nn
 
 from model import CRHeader
+from model2 import CRHeader_L
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu")
 
 
 def get_image(path):
@@ -24,17 +26,20 @@ def get_normalized_data(data_image):
     return data_image
 
 
-def build_data(input_path, target_path):
+def build_data(input_path, target_path, cloudy_path):
     input_img = get_image(input_path).astype('float32')
     target_img = get_image(target_path).astype('float32')
+    cloudy_img = get_image(cloudy_path).astype('float32')
     input_img = get_normalized_data(input_img)
     target_img = get_normalized_data(target_img)
+    cloudy_img = get_normalized_data(cloudy_img)
     return {'input': torch.from_numpy(input_img),
-            'target': torch.from_numpy(target_img)}
+            'target': torch.from_numpy(target_img),
+            'cloudy': torch.from_numpy(cloudy_img)}
 
 
 def load_model(path):
-    meta_learner = CRHeader(input_channels=13, output_channels=3).to(device)
+    meta_learner = CRHeader_L(input_channels=13, output_channels=3).to(device)
     checkpoint = torch.load(path)
     meta_learner.load_state_dict(checkpoint, strict=True)
     return meta_learner
@@ -66,27 +71,49 @@ def get_rgb_preview(r, g, b, sar_composite=False):
 
 
 if __name__ == '__main__':
-    input_image = 'K:\dataset\ensemble\dsen2\ROIs1158_spring_6_p742.tif'
-    target_image = 'K:\dataset\selected_data_folder\s2_cloudFree\ROIs1158_spring_6_p742.tif'
-    meta_path = 'checkpoint/_9.pth'
-    images = build_data(input_image, target_image)
-    inputs = images["input"].to(device)
+    name = 'ROIs1158_spring_63_p266.tif'
+    input_image = f'K:/dataset/ensemble/dsen2/{name}'
+    cloudy_image = f'K:\dataset\selected_data_folder\s2_cloudy\\{name}'
+    target_image = f'K:\dataset\selected_data_folder\s2_cloudFree\\{name}'
+    meta_path = 'checkpoint/checkpoint_9.pth'
+    images = build_data(input_image, target_image, cloudy_image)
+    inputs = images["input"]
     targets = images["target"]
+    cloudy = images['cloudy']
     meta_learner = load_model(meta_path)
     print(inputs.unsqueeze(dim=0).shape)
-    outputs = meta_learner(inputs.unsqueeze(dim=0))
-    outputs_rgb = outputs.cpu().detach().numpy()
+    outputs = meta_learner(inputs.unsqueeze(dim=0).to(device))
+    outputs_rgb = outputs.cpu().detach()
+    inputs_R_channel = inputs[3, :, :]
+    inputs_G_channel = inputs[2, :, :]
+    inputs_B_channel = inputs[1, :, :]
     targets_R_channel = targets[3, :, :]
     targets_G_channel = targets[2, :, :]
     targets_B_channel = targets[1, :, :]
+    cloudy_R_channel = cloudy[3, :, :]
+    cloudy_G_channel = cloudy[2, :, :]
+    cloudy_B_channel = cloudy[1, :, :]
     output_R_channel = outputs_rgb[0, 2, :, :]
     output_G_channel = outputs_rgb[0, 1, :, :]
     output_B_channel = outputs_rgb[0, 0, :, :]
+    print(nn.functional.l1_loss(outputs_rgb.squeeze(dim=0), targets[1:4, :, :]))
+    inputs_rgb = get_rgb_preview(inputs_R_channel, inputs_G_channel, inputs_B_channel)
     targets_rgb = get_rgb_preview(targets_R_channel, targets_G_channel, targets_B_channel)
+    cloudy_rgb = get_rgb_preview(cloudy_R_channel, cloudy_G_channel, cloudy_B_channel)
     output_rgb = get_rgb_preview(output_R_channel, output_G_channel, output_B_channel)
+    plt.figure(figsize=(6, 6))
+    plt.imshow(inputs_rgb)
+    plt.title('input')
+    plt.axis('off')  # 关闭坐标轴标号和刻度
+    plt.show()
     plt.figure(figsize=(6, 6))
     plt.imshow(targets_rgb)
     plt.title('gt')
+    plt.axis('off')  # 关闭坐标轴标号和刻度
+    plt.show()
+    plt.figure(figsize=(6, 6))
+    plt.imshow(cloudy_rgb)
+    plt.title('cloudy')
     plt.axis('off')  # 关闭坐标轴标号和刻度
     plt.show()
     plt.figure(figsize=(6, 6))

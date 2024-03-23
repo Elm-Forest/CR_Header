@@ -1,24 +1,6 @@
 import torch.nn as nn
 
-from cbma import CBAM
-
-
-class DynamicECAModule(nn.Module):
-    def __init__(self, channels, k_size=3):
-        super(DynamicECAModule, self).__init__()
-        self.avg_pool = nn.AdaptiveAvgPool2d(1)
-        self.conv = nn.Conv1d(channels, channels, kernel_size=k_size, padding=(k_size - 1) // 2, bias=False,
-                              groups=channels)
-        self.sigmoid = nn.Sigmoid()
-
-    def forward(self, x):
-        y = self.avg_pool(x)
-        y = y.squeeze(-1).squeeze(-1)
-        y = y.unsqueeze(-1)
-        y = self.conv(y)
-        y = self.sigmoid(y)
-        y = y.unsqueeze(-1)
-        return x * y
+from cbam import CBAM
 
 
 class CRHeader(nn.Module):
