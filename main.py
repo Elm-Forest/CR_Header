@@ -159,6 +159,6 @@ for epoch in range(num_epochs):
               f"PSNR: {total_psnr / len(val_dataloader):.4f}")
     meta_learner.train()
     if epoch % opts.save_freq == 0:
-        torch.save(meta_learner.state_dict(), os.path.join(opts.checkpoint, f'_{epoch}'))
+        torch.save(meta_learner.state_dict(), os.path.join(opts.checkpoint, f'_{epoch}.pth'))
 
 torch.save(meta_learner.state_dict(), opts.save_model_dir)

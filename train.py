@@ -34,7 +34,7 @@ meta_learner = CRHeader(input_channels=13, output_channels=3).to(device)
 optimizer = optim.Adam(meta_learner.parameters(), lr=1e-4)
 criterion = torch.nn.L1Loss()
 
-num_epochs = 10
+num_epochs = 15
 
 print('start training')
 
@@ -129,5 +129,5 @@ for epoch in range(num_epochs):
               f"PSNR: {total_psnr / len(val_dataloader):.4f}")
     meta_learner.train()  # 重新设置模型为训练
     if epoch % 1 == 0:
-        torch.save(meta_learner.state_dict(), os.path.join('./checkpoint', f'_{epoch}'))
-torch.save(meta_learner.state_dict(), './weights/meta_eca.pt')
+        torch.save(meta_learner.state_dict(), os.path.join('./checkpoint', f'_{epoch}.pth'))
+torch.save(meta_learner.state_dict(), './weights/meta_eca.pth')
