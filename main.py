@@ -26,7 +26,7 @@ parser.add_argument('--lr_start_epoch_decay', type=int, default=1, help='epoch t
 parser.add_argument('--epoch', type=int, default=5)
 parser.add_argument('--save_freq', type=int, default=1)
 parser.add_argument('--log_freq', type=int, default=10)
-parser.add_argument('--save_model_dir', type=str, default='./weights/meta_eca.pth',
+parser.add_argument('--save_model_dir', type=str, default='./weights/meta_cbma.pth',
                     help='directory used to store trained networks')
 parser.add_argument('--is_test', type=bool, default=False)
 parser.add_argument('--gpu_ids', type=str, default='0')
@@ -159,6 +159,6 @@ for epoch in range(num_epochs):
               f"PSNR: {total_psnr / len(val_dataloader):.4f}")
     meta_learner.train()
     if epoch % opts.save_freq == 0:
-        torch.save(meta_learner.state_dict(), os.path.join(opts.checkpoint, f'_{epoch}.pth'))
+        torch.save(meta_learner.state_dict(), os.path.join(opts.checkpoint, f'checkpoint_{epoch}.pth'))
 
 torch.save(meta_learner.state_dict(), opts.save_model_dir)

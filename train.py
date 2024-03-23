@@ -129,5 +129,5 @@ for epoch in range(num_epochs):
               f"PSNR: {total_psnr / len(val_dataloader):.4f}")
     meta_learner.train()  # 重新设置模型为训练
     if epoch % 1 == 0:
-        torch.save(meta_learner.state_dict(), os.path.join('./checkpoint', f'_{epoch}.pth'))
+        torch.save(meta_learner.state_dict(), os.path.join('./checkpoint', f'checkpoint_{epoch}.pth'))
 torch.save(meta_learner.state_dict(), './weights/meta_eca.pth')
