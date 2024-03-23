@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import torch
 import torch.optim as optim
@@ -6,7 +8,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 
 from dataset import SEN12MSCR_Dataset, get_filelists
-from model import SpectralCloudRemover
+from model import CRHeader
 
 transform = transforms.Compose([
     transforms.ToTensor(),
@@ -14,7 +16,7 @@ transform = transforms.Compose([
 
 csv_filepath = 'E:/Development Program/Pycharm Program/ECANet/csv/datasetfilelist.csv'
 inputs_dir = 'K:/dataset/ensemble/dsen2'
-inputs_val_dir = 'K:/dataset/selected_data_folder/s2_cloudy'
+inputs_val_dir = 'K:/dataset/ensemble/dsen2'
 targets_dir = 'K:/dataset/selected_data_folder/s2_cloudFree'
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -27,9 +29,9 @@ batch_size = 7
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-meta_learner = SpectralCloudRemover(input_channels=13, output_channels=3).to(device)
+meta_learner = CRHeader(input_channels=13, output_channels=3).to(device)
 
-optimizer = optim.Adam(meta_learner.parameters(), lr=5e-4)
+optimizer = optim.Adam(meta_learner.parameters(), lr=1e-4)
 criterion = torch.nn.L1Loss()
 
 num_epochs = 10
@@ -83,12 +85,15 @@ for epoch in range(num_epochs):
             running_loss = 0.0
             running_ssim = 0.0
             running_psnr = 0.0
-
+    running_loss = 0.0
+    running_ssim = 0.0
+    running_psnr = 0.0
     print('start val')
     # 验证
     meta_learner.eval()  # 设置模型为评估模式
     with torch.no_grad():
         val_loss, val_ssim, val_psnr = 0.0, 0.0, 0.0
+        running_val_loss = 0.0
         total_psnr = 0.0
         for i, images in enumerate(val_dataloader):
             inputs = images["input"].to(device)
@@ -98,8 +103,9 @@ for epoch in range(num_epochs):
             targets_rgb = targets[:, 1:4, :, :]
             # 计算验证集上的损失
             loss = criterion(outputs_rgb, targets_rgb)
-            val_loss += loss.item()
-
+            running_val_loss = loss.item()
+            running_loss += running_val_loss
+            val_loss += running_val_loss
             # 计算SSIM和PSNR
             outputs_np = outputs_rgb.cpu().numpy()
             targets_np = targets_rgb.cpu().numpy()
@@ -121,7 +127,7 @@ for epoch in range(num_epochs):
         print(f"Validation Results - Epoch: {epoch + 1}, Loss: {val_loss / len(val_dataloader):.4f}, "
               # f"SSIM: {val_ssim / len(val_dataloader):.4f}, "
               f"PSNR: {total_psnr / len(val_dataloader):.4f}")
-
     meta_learner.train()  # 重新设置模型为训练
-
-torch.save(meta_learner.state_dict(), '../weights/meta_eca.pt')
+    if epoch % 1 == 0:
+        torch.save(meta_learner.state_dict(), os.path.join('./checkpoint', f'_{epoch}'))
+torch.save(meta_learner.state_dict(), './weights/meta_eca.pt')

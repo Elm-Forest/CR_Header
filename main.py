@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 
 from dataset import SEN12MSCR_Dataset, get_filelists
-from model import SpectralCloudRemover
+from model import CRHeader
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--batch_size', type=int, default=7, help='batch size used for training')
@@ -19,7 +19,6 @@ parser.add_argument('--inputs_val_dir', type=str, default='K:/dataset/selected_d
 parser.add_argument('--targets_dir', type=str, default='K:/dataset/selected_data_folder/s2_cloudFree')
 parser.add_argument('--data_list_filepath', type=str,
                     default='E:/Development Program/Pycharm Program/ECANet/csv/datasetfilelist.csv')
-
 parser.add_argument('--optimizer', type=str, default='Adam', help='Adam')
 parser.add_argument('--lr', type=float, default=5e-4, help='learning rate of optimizer')
 parser.add_argument('--lr_step', type=int, default=2, help='lr decay rate')
@@ -29,9 +28,7 @@ parser.add_argument('--save_freq', type=int, default=1)
 parser.add_argument('--log_freq', type=int, default=10)
 parser.add_argument('--save_model_dir', type=str, default='./weights/meta_eca.pth',
                     help='directory used to store trained networks')
-
 parser.add_argument('--is_test', type=bool, default=False)
-
 parser.add_argument('--gpu_ids', type=str, default='0')
 parser.add_argument('--val_batch_size', type=int, default=1)
 parser.add_argument('--checkpoint', type=str, default="./checkpoint")
@@ -62,7 +59,7 @@ train_dataloader = DataLoader(train_dataset, batch_size=opts.batch_size, shuffle
 val_dataloader = DataLoader(val_dataset, batch_size=opts.val_batch_size, shuffle=False)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-meta_learner = SpectralCloudRemover(input_channels=opts.input_channels, output_channels=output_channels).to(device)
+meta_learner = CRHeader(input_channels=opts.input_channels, output_channels=output_channels).to(device)
 
 if len(opts.gpu_ids) > 1:
     print("Parallel training!")
@@ -115,12 +112,15 @@ for epoch in range(num_epochs):
             running_loss = 0.0
             running_ssim = 0.0
             running_psnr = 0.0
-
+    running_loss = 0.0
+    running_ssim = 0.0
+    running_psnr = 0.0
     print('start val')
     # 验证
     meta_learner.eval()
     with torch.no_grad():
         val_loss, val_ssim, val_psnr = 0.0, 0.0, 0.0
+        running_val_loss = 0.0
         total_psnr = 0.0
         for i, images in enumerate(val_dataloader):
             inputs = images["input"].to(device)
@@ -132,7 +132,9 @@ for epoch in range(num_epochs):
                 targets = targets
             # 计算验证集上的损失
             loss = criterion(outputs, targets)
-            val_loss += loss.item()
+            running_val_loss = loss.item()
+            running_loss += running_val_loss
+            val_loss += running_val_loss
 
             # 计算SSIM和PSNR
             outputs_np = outputs.cpu().numpy()

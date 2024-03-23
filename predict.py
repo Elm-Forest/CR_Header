@@ -3,7 +3,7 @@ import rasterio
 import torch
 from matplotlib import pyplot as plt
 
-from model import SpectralCloudRemover
+from model import CRHeader
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -34,7 +34,7 @@ def build_data(input_path, target_path):
 
 
 def load_model(path):
-    meta_learner = SpectralCloudRemover(input_channels=13, output_channels=3).to(device)
+    meta_learner = CRHeader(input_channels=13, output_channels=3).to(device)
     checkpoint = torch.load(path)
     meta_learner.load_state_dict(checkpoint, strict=True)
     return meta_learner
