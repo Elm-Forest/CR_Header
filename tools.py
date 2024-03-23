@@ -61,3 +61,40 @@ def calculate_ssim(outputs, targets):
 
     # 返回SSIM分数，跳过尺寸不足的图像
     return [score for score in ssim_scores if not np.isnan(score)]
+
+
+def getRGBImg(r, g, b, img_size=256):
+    img = np.zeros((img_size, img_size, 3), dtype=np.uint8)
+    img[:, :, 0] = r
+    img[:, :, 1] = g
+    img[:, :, 2] = b
+    return img
+
+
+def uint16to8(bands, lower_percent=0.001, higher_percent=99.999):
+    out = np.zeros_like(bands, dtype=np.uint8)
+    n = bands.shape[0]
+    for i in range(n):
+        a = 0  # np.min(band)
+        b = 255  # np.max(band)
+        c = np.percentile(bands[i, :, :], lower_percent)
+        d = np.percentile(bands[i, :, :], higher_percent)
+
+        t = a + (bands[i, :, :] - c) * (b - a) / (d - c)
+        t[t < a] = a
+        t[t > b] = b
+        out[i, :, :] = t
+    return out
+
+
+def Get2Img(img_fake, img_truth, img_size=256):
+    output_img = np.zeros((img_size, 2 * img_size, 3), dtype=np.uint8)
+    img_fake = uint16to8((torch.squeeze(img_fake).cpu().detach().numpy() * 10000).astype("uint16")).transpose(1, 2, 0)
+    img_truth = uint16to8((torch.squeeze(img_truth).cpu().detach().numpy() * 10000).astype("uint16")).transpose(1, 2, 0)
+
+    img_fake_RGB = getRGBImg(img_fake[:, :, 2], img_fake[:, :, 1], img_fake[:, :, 0], img_size)
+    img_truth_RGB = getRGBImg(img_truth[:, :, 2], img_truth[:, :, 1], img_truth[:, :, 0], img_size)
+
+    output_img[:, 0 * img_size:1 * img_size, :] = img_fake_RGB
+    output_img[:, 1 * img_size:2 * img_size, :] = img_truth_RGB
+    return output_img

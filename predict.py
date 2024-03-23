@@ -68,7 +68,7 @@ def get_rgb_preview(r, g, b, sar_composite=False):
 if __name__ == '__main__':
     input_image = 'K:\dataset\ensemble\dsen2\ROIs1158_spring_6_p742.tif'
     target_image = 'K:\dataset\selected_data_folder\s2_cloudFree\ROIs1158_spring_6_p742.tif'
-    meta_path = '../weights/meta_eca.pt'
+    meta_path = 'checkpoint/_9.pth'
     images = build_data(input_image, target_image)
     inputs = images["input"].to(device)
     targets = images["target"]
