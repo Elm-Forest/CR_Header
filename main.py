@@ -87,17 +87,18 @@ if len(opts.gpu_ids) > 1:
 optimizer = optim.Adam(meta_learner.parameters(), lr=opts.lr, weight_decay=opts.weight_decay)
 criterion = MS_SSIM_L1_LOSS().to(device)
 
+num_epochs = opts.epoch
+log_step = opts.log_freq
 
-def lr_lambda(epoch):
+
+def lr_lambda(ep):
     initial_lr = 1e-4
     final_lr = 1e-5
     lr_decay = final_lr / initial_lr
-    return 1 - (1 - lr_decay) * (epoch / (num_epochs - 1))
+    return 1 - (1 - lr_decay) * (ep / (num_epochs - 1))
 
 
 scheduler = LambdaLR(optimizer, lr_lambda)
-num_epochs = opts.epoch
-log_step = opts.log_freq
 
 print('Start Training!')
 
