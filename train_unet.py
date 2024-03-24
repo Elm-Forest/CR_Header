@@ -21,11 +21,12 @@ csv_filepath = 'E:/Development Program/Pycharm Program/ECANet/csv/datasetfilelis
 inputs_dir = 'K:/dataset/ensemble/dsen2'
 inputs_val_dir = 'K:/dataset/ensemble/dsen2'
 targets_dir = 'K:/dataset/selected_data_folder/s2_cloudFree'
+sar_dir = 'K:/dataset/selected_data_folder/s1'
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 train_filelist, val_filelist, _ = get_filelists(csv_filepath)
-train_dataset = SEN12MSCR_Dataset(train_filelist, inputs_dir, targets_dir)
-val_dataset = SEN12MSCR_Dataset(val_filelist, inputs_val_dir, targets_dir)
+train_dataset = SEN12MSCR_Dataset(train_filelist, inputs_dir, targets_dir, sar_dir=sar_dir)
+val_dataset = SEN12MSCR_Dataset(val_filelist, inputs_val_dir, targets_dir, sar_dir=sar_dir)
 batch_size = 5
 
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
