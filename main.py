@@ -11,6 +11,7 @@ from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
+from Charbonnier_Loss import L1_Charbonnier_loss
 from MS_SSIM_L1_loss import MS_SSIM_L1_LOSS
 from dataset import SEN12MSCR_Dataset, get_filelists
 from ssim_tools import ssim
@@ -94,7 +95,7 @@ if len(opts.gpu_ids) > 1:
     meta_learner = nn.DataParallel(meta_learner)
 
 optimizer = optim.Adam(meta_learner.parameters(), lr=opts.lr, weight_decay=opts.weight_decay)
-criterion = MS_SSIM_L1_LOSS().to(device)
+criterion = L1_Charbonnier_loss().to(device)
 
 num_epochs = opts.epoch
 log_step = opts.log_freq
