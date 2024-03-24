@@ -16,10 +16,11 @@ from dataset import SEN12MSCR_Dataset, get_filelists
 from ssim_tools import ssim
 from tools import weights_init
 from uent_model import UNet
+from unet_m import R2AttU_Net
 
 warnings.filterwarnings('ignore')
 parser = argparse.ArgumentParser()
-parser.add_argument('--batch_size', type=int, default=7, help='batch size used for training')
+parser.add_argument('--batch_size', type=int, default=4, help='batch size used for training')
 parser.add_argument('--inputs_dir', type=str, default='K:/dataset/ensemble/dsen2')
 parser.add_argument('--inputs_val_dir', type=str, default='K:/dataset/selected_data_folder/s2_cloudy')
 parser.add_argument('--targets_dir', type=str, default='K:/dataset/selected_data_folder/s2_cloudFree')
@@ -43,7 +44,7 @@ parser.add_argument('--checkpoint', type=str, default="./checkpoint")
 parser.add_argument('--frozen', type=bool, default=False)
 parser.add_argument('--speed', type=bool, default=False)
 parser.add_argument('--input_channels', type=int, default=13)
-parser.add_argument('--use_sar', type=bool, default=False)
+parser.add_argument('--use_sar', type=bool, default=True)
 parser.add_argument('--use_rgb', type=bool, default=True)
 parser.add_argument('--load_weights', type=bool, default=False)
 parser.add_argument('--weights_path', type=str, default='weights/unet_carvana_scale0.5_epoch2.pth')
@@ -72,9 +73,9 @@ val_dataloader = DataLoader(val_dataset, batch_size=opts.batch_size, num_workers
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 if opts.sar_dir is not None:
-    meta_learner = UNet(in_channels=opts.input_channels + 2, out_channels=output_channels).to(device)
+    meta_learner = R2AttU_Net(in_channels=opts.input_channels + 2, out_channels=output_channels).to(device)
 else:
-    meta_learner = UNet(in_channels=opts.input_channels, out_channels=output_channels).to(device)
+    meta_learner = R2AttU_Net(in_channels=opts.input_channels, out_channels=output_channels).to(device)
 
 # meta_learner.apply(weights_init)
 if opts.load_weights and opts.weights_path is not None:
