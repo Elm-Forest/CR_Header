@@ -153,7 +153,7 @@ for epoch in range(num_epochs):
             if (i + 1) % log_step == 0:
                 print(f"VAL: Step [{i + 1}/{len(val_dataloader)}], "
                       f"Loss: {running_loss / log_step:.4f}, "
-                      f"SSIM: {running_ssim / len(val_dataloader):.4f}, "
+                      f"SSIM: {running_ssim / log_step:.4f}, "
                       f"PSNR: {running_psnr / log_step:.4f}")
                 running_loss = 0.0
                 running_psnr = 0.0
