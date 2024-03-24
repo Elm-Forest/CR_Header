@@ -113,7 +113,6 @@ for epoch in range(num_epochs):
             targets_np = targets_rgb.cpu().numpy()
             val_ssim = ssim(outputs_rgb, targets_rgb)
             val_psnr = np.mean([psnr(targets_np[b], outputs_np[b]) for b in range(outputs_np.shape[0])])
-            running_ssim += batch_ssim
             total_psnr += val_psnr
             total_ssim += val_ssim
             running_psnr += val_psnr
