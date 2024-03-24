@@ -75,7 +75,7 @@ if __name__ == '__main__':
     input_image = f'K:/dataset/ensemble/dsen2/{name}'
     cloudy_image = f'K:\dataset\selected_data_folder\s2_cloudy\\{name}'
     target_image = f'K:\dataset\selected_data_folder\s2_cloudFree\\{name}'
-    meta_path = 'checkpoint/checkpoint_9.pth'
+    meta_path = 'checkpoint/checkpoint_5.pth'
     images = build_data(input_image, target_image, cloudy_image)
     inputs = images["input"]
     targets = images["target"]

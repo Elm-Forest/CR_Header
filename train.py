@@ -26,7 +26,7 @@ train_filelist, val_filelist, _ = get_filelists(csv_filepath)
 train_dataset = SEN12MSCR_Dataset(train_filelist, inputs_dir, targets_dir)
 val_dataset = SEN12MSCR_Dataset(val_filelist, inputs_val_dir, targets_dir)
 
-batch_size = 7
+batch_size = 3
 
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)

@@ -73,16 +73,22 @@ class CRHeader_L(nn.Module):
         self.conv_in = nn.Sequential(
             conv3x3(input_channels, 64),
             nn.BatchNorm2d(64),
+            nn.ReLU(True),
+            conv3x3(64, 128),
+            nn.BatchNorm2d(128),
             nn.ReLU(True)
         )
-        self.res_block1 = Bottleneck(64, 64)
-        self.res_block2 = Bottleneck(64, 64)
-        self.res_block3 = Bottleneck(64, 64)
-        self.res_block4 = Bottleneck(64, 64)
-        self.cbam_block1 = CMAM_Block(inplanes=64, planes=64)
-        self.cbam_block2 = CMAM_Block(inplanes=64, planes=64)
+        self.res_block1 = Bottleneck(128, 128)
+        self.res_block2 = Bottleneck(128, 128)
+        self.res_block3 = Bottleneck(128, 128)
+        self.res_block4 = Bottleneck(128, 128)
+        self.res_block5 = Bottleneck(128, 128)
+        self.res_block6 = Bottleneck(128, 128)
+        self.cbam_block1 = CMAM_Block(inplanes=128, planes=128)
+        self.cbam_block2 = CMAM_Block(inplanes=128, planes=128)
+        self.cbam_block3 = CMAM_Block(inplanes=128, planes=128)
         self.conv_out = nn.Sequential(
-            conv3x3(64, output_channels),
+            conv3x3(128, output_channels),
             nn.ReLU(True)
         )
         self.color_correction = ColorCorrectionLayer(output_channels)
@@ -95,6 +101,9 @@ class CRHeader_L(nn.Module):
         x = F.relu(self.res_block3(x) + x)
         x = F.relu(self.res_block4(x) + x)
         x = self.cbam_block2(x)
+        x = F.relu(self.res_block5(x) + x)
+        x = F.relu(self.res_block6(x) + x)
+        x = self.cbam_block3(x)
         x = self.conv_out(x)
         x = self.color_correction(x)
         return x
