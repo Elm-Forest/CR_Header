@@ -98,3 +98,23 @@ def Get2Img(img_fake, img_truth, img_size=256):
     output_img[:, 0 * img_size:1 * img_size, :] = img_fake_RGB
     output_img[:, 1 * img_size:2 * img_size, :] = img_truth_RGB
     return output_img
+
+
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find('Conv') != -1:
+        try:
+            m.weight.data.normal_(0.0, 0.02)
+        except:
+            pass
+    elif classname.find('BatchNorm2d') != -1 or classname.find('InstanceNorm2d') != -1:
+        m.weight.data.normal_(1.0, 0.02)
+        m.bias.data.fill_(0)
+
+
+def print_network(net):
+    num_params = 0
+    for param in net.parameters():
+        num_params += param.numel()
+    print(net)
+    print('Total number of parameters: %d' % num_params)

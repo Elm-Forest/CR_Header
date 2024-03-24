@@ -9,8 +9,9 @@ from torchvision import transforms
 
 from MS_SSIM_L1_loss import MS_SSIM_L1_LOSS
 from dataset import SEN12MSCR_Dataset, get_filelists
-from model2 import CRHeader_L
 from ssim_tools import ssim
+from tools import weights_init
+from uent_model import UNet
 
 transform = transforms.Compose([
     transforms.ToTensor(),
@@ -25,12 +26,14 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 train_filelist, val_filelist, _ = get_filelists(csv_filepath)
 train_dataset = SEN12MSCR_Dataset(train_filelist, inputs_dir, targets_dir)
 val_dataset = SEN12MSCR_Dataset(val_filelist, inputs_val_dir, targets_dir)
-batch_size = 2
+batch_size = 5
 
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-meta_learner = CRHeader_L(input_channels=13, output_channels=3).to(device)
+meta_learner = UNet(in_channels=13, out_channels=3).to(device)
+meta_learner.apply(weights_init)
+
 optimizer = optim.Adam(meta_learner.parameters(), lr=1e-4)
 # criterion = torch.nn.L1Loss()
 criterion = MS_SSIM_L1_LOSS().to(device)

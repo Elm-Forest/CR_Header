@@ -26,9 +26,9 @@ class ColorCorrectionLayer(nn.Module):
         return x
 
 
-class CMAM_Block(nn.Module):
+class CBAM_Block(nn.Module):
     def __init__(self, inplanes, planes, stride=1):
-        super(CMAM_Block, self).__init__()
+        super(CBAM_Block, self).__init__()
         self.conv1 = conv3x3(inplanes, planes, stride)
         self.bn1 = nn.BatchNorm2d(planes)
         self.relu = nn.ReLU(inplace=True)
@@ -84,12 +84,18 @@ class CRHeader_L(nn.Module):
         self.res_block4 = Bottleneck(128, 128)
         self.res_block5 = Bottleneck(128, 128)
         self.res_block6 = Bottleneck(128, 128)
-        self.cbam_block1 = CMAM_Block(inplanes=128, planes=128)
-        self.cbam_block2 = CMAM_Block(inplanes=128, planes=128)
-        self.cbam_block3 = CMAM_Block(inplanes=128, planes=128)
+        self.res_block7 = Bottleneck(128, 128)
+        self.res_block8 = Bottleneck(128, 128)
+        self.cbam_block1 = CBAM_Block(inplanes=128, planes=128)
+        self.cbam_block2 = CBAM_Block(inplanes=128, planes=128)
+        self.cbam_block3 = CBAM_Block(inplanes=128, planes=128)
+        self.cbam_block4 = CBAM_Block(inplanes=128, planes=128)
         self.conv_out = nn.Sequential(
-            conv3x3(128, output_channels),
-            nn.ReLU(True)
+            conv3x3(128, 64),
+            nn.BatchNorm2d(64),
+            nn.ReLU(True),
+            conv3x3(64, output_channels),
+            nn.ReLU(True),
         )
         self.color_correction = ColorCorrectionLayer(output_channels)
 
@@ -104,6 +110,9 @@ class CRHeader_L(nn.Module):
         x = F.relu(self.res_block5(x) + x)
         x = F.relu(self.res_block6(x) + x)
         x = self.cbam_block3(x)
+        x = F.relu(self.res_block7(x) + x)
+        x = F.relu(self.res_block8(x) + x)
+        x = self.cbam_block4(x)
         x = self.conv_out(x)
         x = self.color_correction(x)
         return x

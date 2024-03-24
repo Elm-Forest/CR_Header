@@ -71,11 +71,11 @@ def get_rgb_preview(r, g, b, sar_composite=False):
 
 
 if __name__ == '__main__':
-    name = 'ROIs1158_spring_63_p266.tif'
+    name = 'ROIs1158_spring_134_p264.tif'
     input_image = f'K:/dataset/ensemble/dsen2/{name}'
     cloudy_image = f'K:\dataset\selected_data_folder\s2_cloudy\\{name}'
     target_image = f'K:\dataset\selected_data_folder\s2_cloudFree\\{name}'
-    meta_path = 'checkpoint/checkpoint_5.pth'
+    meta_path = 'weights/meta_cbam.pth'
     images = build_data(input_image, target_image, cloudy_image)
     inputs = images["input"]
     targets = images["target"]

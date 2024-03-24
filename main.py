@@ -6,13 +6,15 @@ import torch
 import torch.optim as optim
 from skimage.metrics import peak_signal_noise_ratio as psnr
 from torch import nn
+from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
 from MS_SSIM_L1_loss import MS_SSIM_L1_LOSS
 from dataset import SEN12MSCR_Dataset, get_filelists
-from model2 import CRHeader_L
 from ssim_tools import ssim
+from tools import weights_init
+from uent_model import UNet
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--batch_size', type=int, default=3, help='batch size used for training')
@@ -29,7 +31,7 @@ parser.add_argument('--epoch', type=int, default=5)
 parser.add_argument('--save_freq', type=int, default=1)
 parser.add_argument('--num_workers', type=int, default=1)
 parser.add_argument('--log_freq', type=int, default=10)
-parser.add_argument('--save_model_dir', type=str, default='./weights/meta_cbma.pth',
+parser.add_argument('--save_model_dir', type=str, default='./weights/meta_cbam.pth',
                     help='directory used to store trained networks')
 parser.add_argument('--is_test', type=bool, default=False)
 parser.add_argument('--gpu_ids', type=str, default='0')
@@ -39,6 +41,9 @@ parser.add_argument('--frozen', type=bool, default=False)
 parser.add_argument('--speed', type=bool, default=False)
 parser.add_argument('--input_channels', type=int, default=13)
 parser.add_argument('--use_rgb', type=bool, default=True)
+parser.add_argument('--load_weights', type=bool, default=False)
+parser.add_argument('--weights_path', type=str, default='weights/unet_carvana_scale0.5_epoch2.pth')
+parser.add_argument('--weight_decay', type=float, default=0.0001)
 opts = parser.parse_args()
 
 transform = transforms.Compose([
@@ -62,16 +67,35 @@ train_dataloader = DataLoader(train_dataset, batch_size=opts.batch_size, num_wor
 val_dataloader = DataLoader(val_dataset, batch_size=opts.val_batch_size, num_workers=opts.num_workers, shuffle=False)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-meta_learner = CRHeader_L(input_channels=opts.input_channels, output_channels=output_channels).to(device)
-
+meta_learner = UNet(in_channels=opts.input_channels, out_channels=output_channels).to(device)
+meta_learner.apply(weights_init)
+if opts.load_weights and opts.weights_path is not None:
+    weights = torch.load(opts.weights_path)
+    meta_learner.down1.load_state_dict(weights, strict=False)
+    meta_learner.down2.load_state_dict(weights, strict=False)
+    meta_learner.down3.load_state_dict(weights, strict=False)
+    meta_learner.down4.load_state_dict(weights, strict=False)
+    meta_learner.up1.load_state_dict(weights, strict=False)
+    meta_learner.up2.load_state_dict(weights, strict=False)
+    meta_learner.up3.load_state_dict(weights, strict=False)
+    meta_learner.up4.load_state_dict(weights, strict=False)
 if len(opts.gpu_ids) > 1:
     print("Parallel training!")
     os.environ["CUDA_VISIBLE_DEVICES"] = opts.gpu_ids
     meta_learner = nn.DataParallel(meta_learner)
 
-optimizer = optim.Adam(meta_learner.parameters(), lr=opts.lr)
-criterion = MS_SSIM_L1_LOSS()
+optimizer = optim.Adam(meta_learner.parameters(), lr=opts.lr, weight_decay=opts.weight_decay)
+criterion = MS_SSIM_L1_LOSS().to(device)
 
+
+def lr_lambda(epoch):
+    initial_lr = 1e-4
+    final_lr = 1e-5
+    lr_decay = final_lr / initial_lr
+    return 1 - (1 - lr_decay) * (epoch / (num_epochs - 1))
+
+
+scheduler = LambdaLR(optimizer, lr_lambda)
 num_epochs = opts.epoch
 log_step = opts.log_freq
 
@@ -114,6 +138,7 @@ for epoch in range(num_epochs):
             running_loss = 0.0
             running_ssim = 0.0
             running_psnr = 0.0
+    scheduler.step()
     running_loss = 0.0
     running_ssim = 0.0
     running_psnr = 0.0
