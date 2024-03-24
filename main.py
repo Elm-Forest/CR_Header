@@ -27,6 +27,7 @@ parser.add_argument('--lr_step', type=int, default=2, help='lr decay rate')
 parser.add_argument('--lr_start_epoch_decay', type=int, default=1, help='epoch to start lr decay')
 parser.add_argument('--epoch', type=int, default=5)
 parser.add_argument('--save_freq', type=int, default=1)
+parser.add_argument('--num_workers', type=int, default=1)
 parser.add_argument('--log_freq', type=int, default=10)
 parser.add_argument('--save_model_dir', type=str, default='./weights/meta_cbma.pth',
                     help='directory used to store trained networks')
@@ -57,8 +58,8 @@ train_filelist, val_filelist, _ = get_filelists(csv_filepath)
 train_dataset = SEN12MSCR_Dataset(train_filelist, inputs_dir, targets_dir)
 val_dataset = SEN12MSCR_Dataset(val_filelist, inputs_val_dir, targets_dir)
 
-train_dataloader = DataLoader(train_dataset, batch_size=opts.batch_size, shuffle=True)
-val_dataloader = DataLoader(val_dataset, batch_size=opts.val_batch_size, shuffle=False)
+train_dataloader = DataLoader(train_dataset, batch_size=opts.batch_size, num_workers=opts.num_workers, shuffle=True)
+val_dataloader = DataLoader(val_dataset, batch_size=opts.val_batch_size, num_workers=opts.num_workers, shuffle=False)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 meta_learner = CRHeader_L(input_channels=opts.input_channels, output_channels=output_channels).to(device)
