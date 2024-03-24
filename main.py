@@ -15,14 +15,14 @@ from model2 import CRHeader_L
 from ssim_tools import ssim
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--batch_size', type=int, default=7, help='batch size used for training')
+parser.add_argument('--batch_size', type=int, default=3, help='batch size used for training')
 parser.add_argument('--inputs_dir', type=str, default='K:/dataset/ensemble/dsen2')
 parser.add_argument('--inputs_val_dir', type=str, default='K:/dataset/selected_data_folder/s2_cloudy')
 parser.add_argument('--targets_dir', type=str, default='K:/dataset/selected_data_folder/s2_cloudFree')
 parser.add_argument('--data_list_filepath', type=str,
                     default='E:/Development Program/Pycharm Program/ECANet/csv/datasetfilelist.csv')
 parser.add_argument('--optimizer', type=str, default='Adam', help='Adam')
-parser.add_argument('--lr', type=float, default=5e-4, help='learning rate of optimizer')
+parser.add_argument('--lr', type=float, default=1e-4, help='learning rate of optimizer')
 parser.add_argument('--lr_step', type=int, default=2, help='lr decay rate')
 parser.add_argument('--lr_start_epoch_decay', type=int, default=1, help='epoch to start lr decay')
 parser.add_argument('--epoch', type=int, default=5)
@@ -88,18 +88,18 @@ for epoch in range(num_epochs):
         targets = images["target"].to(device)
         outputs = meta_learner(inputs)
         if opts.use_rgb:
-            targets = targets[:, 1:4, :, :]
+            targets_rgb = targets[:, 1:4, :, :]
         else:
-            targets = targets
-        loss = criterion(outputs, targets)
+            targets_rgb = targets
+        loss = criterion(outputs, targets_rgb)
         loss.backward()
         optimizer.step()
         running_loss += loss.item()
         outputs_np = outputs.cpu().detach().numpy()
-        targets_np = targets.cpu().detach().numpy()
+        targets_np = targets_rgb.cpu().detach().numpy()
 
         # 计算并更新SSIM和PSNR
-        batch_ssim = ssim(outputs, targets)
+        batch_ssim = ssim(outputs, targets_rgb)
         batch_psnr = np.mean([psnr(targets_np[b], outputs_np[b]) for b in range(outputs_np.shape[0])])
         running_ssim += batch_ssim
         running_psnr += batch_psnr
@@ -129,19 +129,19 @@ for epoch in range(num_epochs):
             targets = images["target"].to(device)
             outputs = meta_learner(inputs)
             if opts.use_rgb:
-                targets = targets[:, 1:4, :, :]
+                targets_rgb = targets[:, 1:4, :, :]
             else:
-                targets = targets
+                targets_rgb = targets
             # 计算验证集上的损失
-            loss = criterion(outputs, targets)
+            loss = criterion(outputs, targets_rgb)
             running_val_loss = loss.item()
             running_loss += running_val_loss
             val_loss += running_val_loss
 
             # 计算SSIM和PSNR
             outputs_np = outputs.cpu().numpy()
-            targets_np = targets.cpu().numpy()
-            val_ssim = ssim(outputs, targets)
+            targets_np = targets_rgb.cpu().numpy()
+            val_ssim = ssim(outputs, targets_rgb)
             val_psnr = np.mean([psnr(targets_np[b], outputs_np[b]) for b in range(outputs_np.shape[0])])
             running_ssim += batch_ssim
             total_psnr += val_psnr
