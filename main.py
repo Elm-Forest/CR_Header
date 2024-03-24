@@ -139,7 +139,11 @@ for epoch in range(num_epochs):
         targets_np = targets_rgb.cpu().detach().numpy()
 
         batch_ssim = ssim(outputs, targets_rgb)
-        ori_ssim = ssim(inputs[:, 1:4, :, :], targets_rgb)
+        if opts.use_rgb:
+            ori_ssim = ssim(inputs[:, 1:4, :, :], targets_rgb)
+        else:
+            ori_ssim = ssim(inputs, targets_rgb)
+
         batch_psnr = np.mean([psnr(targets_np[b], outputs_np[b]) for b in range(outputs_np.shape[0])])
         running_ssim += batch_ssim
         running_psnr += batch_psnr
@@ -193,7 +197,10 @@ for epoch in range(num_epochs):
             targets_np = targets_rgb.cpu().numpy()
 
             val_ssim = ssim(outputs, targets_rgb)
-            ori_ssim = ssim(inputs[:, 1:4, :, :], targets_rgb)
+            if opts.use_rgb:
+                ori_ssim = ssim(inputs[:, 1:4, :, :], targets_rgb)
+            else:
+                ori_ssim = ssim(inputs, targets_rgb)
             val_psnr = np.mean([psnr(targets_np[b], outputs_np[b]) for b in range(outputs_np.shape[0])])
 
             total_psnr += val_psnr
