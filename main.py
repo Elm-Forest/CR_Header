@@ -1,5 +1,6 @@
 import argparse
 import os
+import warnings
 
 import numpy as np
 import torch
@@ -16,6 +17,7 @@ from ssim_tools import ssim
 from tools import weights_init
 from uent_model import UNet
 
+warnings.filterwarnings('ignore')
 parser = argparse.ArgumentParser()
 parser.add_argument('--batch_size', type=int, default=3, help='batch size used for training')
 parser.add_argument('--inputs_dir', type=str, default='K:/dataset/ensemble/dsen2')
