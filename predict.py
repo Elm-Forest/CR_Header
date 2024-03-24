@@ -4,8 +4,7 @@ import torch
 from matplotlib import pyplot as plt
 from torch import nn
 
-from model import CRHeader
-from model2 import CRHeader_L
+from uent_model import UNet
 
 device = torch.device("cpu")
 
@@ -17,31 +16,59 @@ def get_image(path):
     return image
 
 
-def get_normalized_data(data_image):
-    clip_min = 0
-    clip_max = 10000
+def get_normalized_data(data_image, data_type=2):
+    clip_min = [[-25.0, -32.5], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
+    clip_max = [[0, 0],
+                [10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000],
+                [10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000]]
+
+    max_val = 1
     scale = 10000
-    data_image = np.clip(data_image, clip_min, clip_max)
-    data_image = data_image / scale
+    # SAR
+    if data_type == 1:
+        for channel in range(len(data_image)):
+            data_image[channel] = np.clip(data_image[channel], clip_min[data_type - 1][channel],
+                                          clip_max[data_type - 1][channel])
+            data_image[channel] -= clip_min[data_type - 1][channel]
+            data_image[channel] = max_val * (data_image[channel] / (
+                    clip_max[data_type - 1][channel] - clip_min[data_type - 1][channel]))
+    # OPT
+    elif data_type == 2 or data_type == 3:
+        for channel in range(len(data_image)):
+            data_image[channel] = np.clip(data_image[channel], clip_min[data_type - 1][channel],
+                                          clip_max[data_type - 1][channel])
+        data_image /= scale
+
     return data_image
 
 
-def build_data(input_path, target_path, cloudy_path):
+def build_data(input_path, target_path, cloudy_path, sar_path):
     input_img = get_image(input_path).astype('float32')
     target_img = get_image(target_path).astype('float32')
     cloudy_img = get_image(cloudy_path).astype('float32')
-    input_img = get_normalized_data(input_img)
-    target_img = get_normalized_data(target_img)
-    cloudy_img = get_normalized_data(cloudy_img)
+    sar_img = get_image(sar_path).astype('float32')
+    input_img = get_normalized_data(input_img, 2)
+    target_img = get_normalized_data(target_img, 3)
+    cloudy_img = get_normalized_data(cloudy_img, 2)
+    sar_img = get_normalized_data(sar_img, 2)
     return {'input': torch.from_numpy(input_img),
             'target': torch.from_numpy(target_img),
-            'cloudy': torch.from_numpy(cloudy_img)}
+            'cloudy': torch.from_numpy(cloudy_img),
+            'sar': torch.from_numpy(sar_img)}
 
 
 def load_model(path):
-    meta_learner = CRHeader_L(input_channels=13, output_channels=3).to(device)
+    meta_learner = UNet(in_channels=13+2, out_channels=3).to(device)
     checkpoint = torch.load(path)
-    meta_learner.load_state_dict(checkpoint, strict=True)
+    try:
+        meta_learner.load_state_dict(checkpoint, strict=True)
+    except:
+        # 创建一个新的状态字典，其中去掉了 'module.' 前缀
+        new_state_dict = {k.replace('module.', ''): v for k, v in checkpoint.items()}
+
+        # 加载新的状态字典到模型
+        meta_learner.load_state_dict(new_state_dict)
     return meta_learner
 
 
@@ -71,18 +98,21 @@ def get_rgb_preview(r, g, b, sar_composite=False):
 
 
 if __name__ == '__main__':
-    name = 'ROIs1158_spring_134_p264.tif'
+    name = 'ROIs1158_spring_109_p167.tif'
     input_image = f'K:/dataset/ensemble/dsen2/{name}'
     cloudy_image = f'K:\dataset\selected_data_folder\s2_cloudy\\{name}'
     target_image = f'K:\dataset\selected_data_folder\s2_cloudFree\\{name}'
+    sar_image = f'K:\dataset\selected_data_folder\s1\\{name}'
     meta_path = 'weights/meta_cbam.pth'
-    images = build_data(input_image, target_image, cloudy_image)
+    images = build_data(input_image, target_image, cloudy_image, sar_image)
     inputs = images["input"]
     targets = images["target"]
     cloudy = images['cloudy']
+    sar = images['sar']
     meta_learner = load_model(meta_path)
     print(inputs.unsqueeze(dim=0).shape)
-    outputs = meta_learner(inputs.unsqueeze(dim=0).to(device))
+    concatenated = torch.cat((inputs.unsqueeze(dim=0), sar.unsqueeze(dim=0)), dim=1)
+    outputs = meta_learner(concatenated)
     outputs_rgb = outputs.cpu().detach()
     inputs_R_channel = inputs[3, :, :]
     inputs_G_channel = inputs[2, :, :]

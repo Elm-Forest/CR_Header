@@ -21,7 +21,6 @@ class DoubleConv(nn.Module):
             nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True),
-            CBAM_Block(out_channels, out_channels)
         )
 
     def forward(self, x):

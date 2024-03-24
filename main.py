@@ -68,7 +68,7 @@ train_dataset = SEN12MSCR_Dataset(train_filelist, inputs_dir, targets_dir, sar_d
 val_dataset = SEN12MSCR_Dataset(val_filelist, inputs_val_dir, targets_dir, sar_dir=opts.sar_dir)
 
 train_dataloader = DataLoader(train_dataset, batch_size=opts.batch_size, num_workers=opts.num_workers, shuffle=True)
-val_dataloader = DataLoader(val_dataset, batch_size=opts.val_batch_size, num_workers=opts.num_workers, shuffle=False)
+val_dataloader = DataLoader(val_dataset, batch_size=opts.batch_size, num_workers=opts.num_workers, shuffle=False)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 if opts.sar_dir is not None:
@@ -76,7 +76,7 @@ if opts.sar_dir is not None:
 else:
     meta_learner = UNet(in_channels=opts.input_channels, out_channels=output_channels).to(device)
 
-meta_learner.apply(weights_init)
+# meta_learner.apply(weights_init)
 if opts.load_weights and opts.weights_path is not None:
     weights = torch.load(opts.weights_path)
     meta_learner.down1.load_state_dict(weights, strict=False)
