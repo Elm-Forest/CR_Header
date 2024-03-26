@@ -12,16 +12,14 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 
 from Charbonnier_Loss import L1_Charbonnier_loss
-from MS_SSIM_L1_loss import MS_SSIM_L1_LOSS
+from color_loss import ColorLoss
 from dataset import SEN12MSCR_Dataset, get_filelists
 from ssim_tools import ssim
-from tools import weights_init
-from uent_model import UNet
-from unet_m import R2AttU_Net
+from unet_m import NestedUNet
 
 warnings.filterwarnings('ignore')
 parser = argparse.ArgumentParser()
-parser.add_argument('--batch_size', type=int, default=4, help='batch size used for training')
+parser.add_argument('--batch_size', type=int, default=3, help='batch size used for training')
 parser.add_argument('--inputs_dir', type=str, default='K:/dataset/ensemble/dsen2')
 parser.add_argument('--inputs_val_dir', type=str, default='K:/dataset/selected_data_folder/s2_cloudy')
 parser.add_argument('--targets_dir', type=str, default='K:/dataset/selected_data_folder/s2_cloudFree')
@@ -74,9 +72,9 @@ val_dataloader = DataLoader(val_dataset, batch_size=opts.batch_size, num_workers
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 if opts.sar_dir is not None:
-    meta_learner = R2AttU_Net(in_channels=opts.input_channels + 2, out_channels=output_channels).to(device)
+    meta_learner = NestedUNet(in_channels=opts.input_channels + 2, out_channels=output_channels).to(device)
 else:
-    meta_learner = R2AttU_Net(in_channels=opts.input_channels, out_channels=output_channels).to(device)
+    meta_learner = NestedUNet(in_channels=opts.input_channels, out_channels=output_channels).to(device)
 
 # meta_learner.apply(weights_init)
 if opts.load_weights and opts.weights_path is not None:
@@ -95,8 +93,9 @@ if len(opts.gpu_ids) > 1:
     meta_learner = nn.DataParallel(meta_learner)
 
 optimizer = optim.Adam(meta_learner.parameters(), lr=opts.lr, weight_decay=opts.weight_decay)
-criterion = L1_Charbonnier_loss().to(device)
-
+criterion_L1 = L1_Charbonnier_loss().to(device)
+criterion_Color = ColorLoss().to(device)
+criterion_L2 = nn.MSELoss().to(device)
 num_epochs = opts.epoch
 log_step = opts.log_freq
 
@@ -133,7 +132,11 @@ for epoch in range(num_epochs):
             targets_rgb = targets[:, 1:4, :, :]
         else:
             targets_rgb = targets
-        loss = criterion(outputs, targets_rgb)
+        loss_l1 = criterion_L1(outputs, targets_rgb)
+        # loss_color = criterion_Color(outputs, targets_rgb)
+        # loss = loss_l1 * 100 + loss_color * 0.01
+        loss = loss_l1
+        # print(loss_l1.item() * 100, loss_color.item() * 0.01)
         loss.backward()
         optimizer.step()
         running_loss += loss.item()
@@ -189,7 +192,7 @@ for epoch in range(num_epochs):
             else:
                 targets_rgb = targets
 
-            loss = criterion(outputs, targets_rgb)
+            loss = criterion_L1(outputs, targets_rgb)
 
             running_val_loss = loss.item()
             running_loss += running_val_loss
@@ -220,7 +223,7 @@ for epoch in range(num_epochs):
                 running_loss = 0.0
                 running_psnr = 0.0
                 running_ssim = 0.0
-
+                original_ssim = 0.0
         print(f"Validation Results - Epoch: {epoch + 1}, Loss: {val_loss / len(val_dataloader):.4f}, "
               f"SSIM: {total_ssim / len(val_dataloader):.4f}, "
               f"PSNR: {total_psnr / len(val_dataloader):.4f}, "

@@ -1,8 +1,9 @@
 from __future__ import print_function, division
+
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data
-import torch
 
 
 class conv_block(nn.Module):
@@ -469,6 +470,8 @@ class conv_block_nested(nn.Module):
         self.bn1 = nn.BatchNorm2d(mid_ch)
         self.conv2 = nn.Conv2d(mid_ch, out_ch, kernel_size=3, padding=1, bias=True)
         self.bn2 = nn.BatchNorm2d(out_ch)
+        nn.init.kaiming_normal_(self.conv1.weight, mode='fan_out', nonlinearity='relu')
+        nn.init.kaiming_normal_(self.conv2.weight, mode='fan_out', nonlinearity='relu')
 
     def forward(self, x):
         x = self.conv1(x)
@@ -490,7 +493,7 @@ class NestedUNet(nn.Module):
     https://arxiv.org/pdf/1807.10165.pdf
     """
 
-    def __init__(self, in_ch=3, out_ch=1):
+    def __init__(self, in_channels=3, out_channels=1):
         super(NestedUNet, self).__init__()
 
         n1 = 64
@@ -499,7 +502,7 @@ class NestedUNet(nn.Module):
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
         self.Up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
 
-        self.conv0_0 = conv_block_nested(in_ch, filters[0], filters[0])
+        self.conv0_0 = conv_block_nested(in_channels, filters[0], filters[0])
         self.conv1_0 = conv_block_nested(filters[0], filters[1], filters[1])
         self.conv2_0 = conv_block_nested(filters[1], filters[2], filters[2])
         self.conv3_0 = conv_block_nested(filters[2], filters[3], filters[3])
@@ -519,7 +522,7 @@ class NestedUNet(nn.Module):
 
         self.conv0_4 = conv_block_nested(filters[0] * 4 + filters[1], filters[0], filters[0])
 
-        self.final = nn.Conv2d(filters[0], out_ch, kernel_size=1)
+        self.final = nn.Conv2d(filters[0], out_channels, kernel_size=1)
 
     def forward(self, x):
         x0_0 = self.conv0_0(x)

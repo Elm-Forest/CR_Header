@@ -4,7 +4,7 @@ import torch
 from matplotlib import pyplot as plt
 from torch import nn
 
-from uent_model import UNet
+from unet_m import R2AttU_Net
 
 device = torch.device("cpu")
 
@@ -59,7 +59,7 @@ def build_data(input_path, target_path, cloudy_path, sar_path):
 
 
 def load_model(path):
-    meta_learner = UNet(in_channels=13+2, out_channels=3).to(device)
+    meta_learner = R2AttU_Net(in_channels=13 + 2, out_channels=3).to(device)
     checkpoint = torch.load(path)
     try:
         meta_learner.load_state_dict(checkpoint, strict=True)
@@ -114,6 +114,7 @@ if __name__ == '__main__':
     concatenated = torch.cat((inputs.unsqueeze(dim=0), sar.unsqueeze(dim=0)), dim=1)
     outputs = meta_learner(concatenated)
     outputs_rgb = outputs.cpu().detach()
+    outputs_rgb = get_normalized_data(outputs_rgb.squeeze(dim=0).numpy(), 2)
     inputs_R_channel = inputs[3, :, :]
     inputs_G_channel = inputs[2, :, :]
     inputs_B_channel = inputs[1, :, :]
@@ -123,10 +124,10 @@ if __name__ == '__main__':
     cloudy_R_channel = cloudy[3, :, :]
     cloudy_G_channel = cloudy[2, :, :]
     cloudy_B_channel = cloudy[1, :, :]
-    output_R_channel = outputs_rgb[0, 2, :, :]
-    output_G_channel = outputs_rgb[0, 1, :, :]
-    output_B_channel = outputs_rgb[0, 0, :, :]
-    print(nn.functional.l1_loss(outputs_rgb.squeeze(dim=0), targets[1:4, :, :]))
+    output_R_channel = outputs_rgb[2, :, :]
+    output_G_channel = outputs_rgb[1, :, :]
+    output_B_channel = outputs_rgb[0, :, :]
+    # print(nn.functional.l1_loss(outputs_rgb, targets[1:4, :, :]))
     inputs_rgb = get_rgb_preview(inputs_R_channel, inputs_G_channel, inputs_B_channel)
     targets_rgb = get_rgb_preview(targets_R_channel, targets_G_channel, targets_B_channel)
     cloudy_rgb = get_rgb_preview(cloudy_R_channel, cloudy_G_channel, cloudy_B_channel)
