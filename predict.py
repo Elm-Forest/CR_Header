@@ -4,7 +4,7 @@ import torch
 from matplotlib import pyplot as plt
 from torch import nn
 
-from unet_m import R2AttU_Net
+from unet_m import R2AttU_Net, NestedUNet
 
 device = torch.device("cpu")
 
@@ -59,7 +59,7 @@ def build_data(input_path, target_path, cloudy_path, sar_path):
 
 
 def load_model(path):
-    meta_learner = R2AttU_Net(in_channels=13 + 2, out_channels=3).to(device)
+    meta_learner = NestedUNet(in_channels=13 + 2, out_channels=3).to(device)
     checkpoint = torch.load(path)
     try:
         meta_learner.load_state_dict(checkpoint, strict=True)
@@ -103,7 +103,7 @@ if __name__ == '__main__':
     cloudy_image = f'K:\dataset\selected_data_folder\s2_cloudy\\{name}'
     target_image = f'K:\dataset\selected_data_folder\s2_cloudFree\\{name}'
     sar_image = f'K:\dataset\selected_data_folder\s1\\{name}'
-    meta_path = 'weights/meta_cbam.pth'
+    meta_path = 'checkpoint/checkpoint_4.pth'
     images = build_data(input_image, target_image, cloudy_image, sar_image)
     inputs = images["input"]
     targets = images["target"]

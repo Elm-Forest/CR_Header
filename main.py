@@ -15,6 +15,7 @@ from Charbonnier_Loss import L1_Charbonnier_loss
 from color_loss import ColorLoss
 from dataset import SEN12MSCR_Dataset, get_filelists
 from ssim_tools import ssim
+from uent_model import UNet_new
 from unet_m import NestedUNet
 
 warnings.filterwarnings('ignore')
@@ -71,8 +72,10 @@ train_dataloader = DataLoader(train_dataset, batch_size=opts.batch_size, num_wor
 val_dataloader = DataLoader(val_dataset, batch_size=opts.batch_size, num_workers=opts.num_workers, shuffle=False)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 if opts.sar_dir is not None:
-    meta_learner = NestedUNet(in_channels=opts.input_channels + 2, out_channels=output_channels).to(device)
+    meta_learner = UNet_new(2, 13, 3).to(device)
+    #　meta_learner = NestedUNet(in_channels=opts.input_channels + 2, out_channels=output_channels).to(device)
 else:
     meta_learner = NestedUNet(in_channels=opts.input_channels, out_channels=output_channels).to(device)
 
@@ -124,8 +127,8 @@ for epoch in range(num_epochs):
         targets = images["target"].to(device)
         if opts.sar_dir is not None:
             sars = images["sar"].to(device)
-            concatenated = torch.cat((inputs, sars), dim=1)
-            outputs = meta_learner(concatenated)
+            # concatenated = torch.cat((inputs, sars), dim=1)
+            outputs = meta_learner(sars,inputs)
         else:
             outputs = meta_learner(inputs)
         if opts.use_rgb:
@@ -183,8 +186,8 @@ for epoch in range(num_epochs):
             targets = images["target"].to(device)
             if opts.sar_dir is not None:
                 sars = images["sar"].to(device)
-                concatenated = torch.cat((inputs, sars), dim=1)
-                outputs = meta_learner(concatenated)
+                # concatenated = torch.cat((inputs, sars), dim=1)
+                outputs = meta_learner(sars, inputs)
             else:
                 outputs = meta_learner(inputs)
             if opts.use_rgb:
