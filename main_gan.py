@@ -82,8 +82,8 @@ criterion_GAN = nn.BCELoss()
 num_epochs = opts.epoch
 log_step = opts.log_freq
 
-optimizer_G = torch.optim.Adam(generator.parameters(), lr=0.0002, betas=(0.5, 0.999))
-optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=0.0002, betas=(0.5, 0.999))
+optimizer_G = torch.optim.Adam(generator.parameters(), lr=opts.lr, betas=(0.5, 0.999))
+optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opts.lr, betas=(0.5, 0.999))
 lambda_L1 = 100
 
 
