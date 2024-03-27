@@ -19,7 +19,7 @@ from unet_m import NestedUNet
 
 warnings.filterwarnings('ignore')
 parser = argparse.ArgumentParser()
-parser.add_argument('--batch_size', type=int, default=4, help='batch size used for training')
+parser.add_argument('--batch_size', type=int, default=8, help='batch size used for training')
 parser.add_argument('--inputs_dir', type=str, default='K:/dataset/ensemble/dsen2')
 parser.add_argument('--inputs_dir2', type=str, default='K:/dataset/ensemble/clf')
 parser.add_argument('--targets_dir', type=str, default='K:/dataset/selected_data_folder/s2_cloudFree')
@@ -27,7 +27,7 @@ parser.add_argument('--sar_dir', type=str, default='K:/dataset/selected_data_fol
 parser.add_argument('--data_list_filepath', type=str,
                     default='E:/Development Program/Pycharm Program/ECANet/csv/datasetfilelist.csv')
 parser.add_argument('--optimizer', type=str, default='Adam', help='Adam')
-parser.add_argument('--lr', type=float, default=2e-5, help='learning rate of optimizer')
+parser.add_argument('--lr', type=float, default=1e-4, help='learning rate of optimizer')
 parser.add_argument('--lr_step', type=int, default=2, help='lr decay rate')
 parser.add_argument('--lr_start_epoch_decay', type=int, default=1, help='epoch to start lr decay')
 parser.add_argument('--epoch', type=int, default=10)
@@ -108,8 +108,8 @@ log_step = opts.log_freq
 
 
 def lr_lambda(ep):
-    initial_lr = 2e-5
-    final_lr = 5e-6
+    initial_lr = 1e-4
+    final_lr = 1e-5
     lr_decay = final_lr / initial_lr
     return 1 - (1 - lr_decay) * (ep / (num_epochs - 1))
 

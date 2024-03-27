@@ -30,7 +30,7 @@ class UNet_new(nn.Module):
     def __init__(self, in_channels_sar, in_channels_s2, out_channels, bilinear=True):
         super(UNet_new, self).__init__()
         self.bilinear = bilinear
-        self.encoder_sar = Encoder(in_channels_sar, bilinear)
+        self.encoder_sar = Encoder(in_channels_sar, bilinear)  # official Unet Encoder
         self.encoder_s2 = Encoder(in_channels_s2, bilinear)
         factor = 2 if bilinear else 1
         self.up1 = (Up(2048, 1024 // factor, bilinear))

@@ -1,4 +1,5 @@
 import os
+import random
 
 import numpy as np
 import rasterio
@@ -27,14 +28,15 @@ def get_filelists(listpath):
 
 
 class SEN12MSCR_Dataset(Dataset):
-    def __init__(self, filelist, inputs_dir, targets_dir, sar_dir=None, inputs_dir2=None):
+    def __init__(self, filelist, inputs_dir, targets_dir, sar_dir=None, inputs_dir2=None, crop_size=None):
         self.filelist = filelist
         self.inputs_dir = inputs_dir
         self.inputs_dir2 = inputs_dir2
         self.sar_dir = sar_dir
         self.targets_dir = targets_dir
-
-        self.clip_min = [[-25.0, -32.5], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        self.crop_size = crop_size
+        self.clip_min = [[-25.0, -32.5],
+                         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
         self.clip_max = [[0, 0],
@@ -58,21 +60,34 @@ class SEN12MSCR_Dataset(Dataset):
         target_image = self.get_image(target_path).astype('float32')
 
         input_image = self.get_normalized_data(input_image, data_type=2)
+        input_image = torch.from_numpy(input_image)
         target_image = self.get_normalized_data(target_image, data_type=3)
-
-        result = {'input': torch.from_numpy(input_image),
-                  'target': torch.from_numpy(target_image)}
+        target_image = torch.from_numpy(target_image)
+        x, y = 0, 0
+        if self.crop_size is not None:
+            y = random.randint(0, np.maximum(0, self.crop_size))
+            x = random.randint(0, np.maximum(0, self.crop_size))
+            target_image = target_image[..., y:y + self.crop_size, x:x + self.crop_size]
+            input_image = input_image[..., y:y + self.crop_size, x:x + self.crop_size]
+        result = {'input': input_image,
+                  'target': target_image}
 
         if self.sar_dir is not None:
             sar_path = os.path.join(self.sar_dir, fileID)
             sar_image = self.get_image(sar_path).astype('float32')
             sar_image = self.get_normalized_data(sar_image, data_type=1)
-            result['sar'] = torch.from_numpy(sar_image)
+            sar_image = torch.from_numpy(sar_image)
+            if self.crop_size is not None:
+                sar_image = sar_image[..., y:y + self.crop_size, x:x + self.crop_size]
+            result['sar'] = sar_image
         if self.inputs_dir2 is not None:
             input_path2 = os.path.join(self.inputs_dir2, fileID)
             input_image2 = self.get_image(input_path2).astype('float32')
             input_image2 = self.get_normalized_data(input_image2, data_type=4)
-            result['input2'] = torch.from_numpy(input_image2)
+            input_image2 = torch.from_numpy(input_image2)
+            if self.crop_size is not None:
+                input_image2 = input_image2[..., y:y + self.crop_size, x:x + self.crop_size]
+            result['input2'] = input_image2
         return result
 
     def get_image(self, path):
