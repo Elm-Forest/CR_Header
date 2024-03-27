@@ -27,15 +27,18 @@ def get_filelists(listpath):
 
 
 class SEN12MSCR_Dataset(Dataset):
-    def __init__(self, filelist, inputs_dir, targets_dir, sar_dir=None):
+    def __init__(self, filelist, inputs_dir, targets_dir, sar_dir=None, inputs_dir2=None):
         self.filelist = filelist
         self.inputs_dir = inputs_dir
+        self.inputs_dir2 = inputs_dir2
         self.sar_dir = sar_dir
         self.targets_dir = targets_dir
 
         self.clip_min = [[-25.0, -32.5], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
         self.clip_max = [[0, 0],
+                         [10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000],
                          [10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000],
                          [10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000]]
 
@@ -46,8 +49,8 @@ class SEN12MSCR_Dataset(Dataset):
         return len(self.filelist)
 
     def __getitem__(self, index):
-
         fileID = self.filelist[index][-1]
+
         input_path = os.path.join(self.inputs_dir, fileID)
         target_path = os.path.join(self.targets_dir, fileID)
 
@@ -56,16 +59,21 @@ class SEN12MSCR_Dataset(Dataset):
 
         input_image = self.get_normalized_data(input_image, data_type=2)
         target_image = self.get_normalized_data(target_image, data_type=3)
-        if self.sar_dir is None:
-            return {'input': torch.from_numpy(input_image),
-                    'target': torch.from_numpy(target_image)}
-        else:
+
+        result = {'input': torch.from_numpy(input_image),
+                  'target': torch.from_numpy(target_image)}
+
+        if self.sar_dir is not None:
             sar_path = os.path.join(self.sar_dir, fileID)
             sar_image = self.get_image(sar_path).astype('float32')
             sar_image = self.get_normalized_data(sar_image, data_type=1)
-            return {'input': torch.from_numpy(input_image),
-                    'sar': torch.from_numpy(sar_image),
-                    'target': torch.from_numpy(target_image)}
+            result['sar'] = torch.from_numpy(sar_image)
+        if self.inputs_dir2 is not None:
+            input_path2 = os.path.join(self.inputs_dir2, fileID)
+            input_image2 = self.get_image(input_path2).astype('float32')
+            input_image2 = self.get_normalized_data(input_image2, data_type=4)
+            result['input2'] = torch.from_numpy(input_image2)
+        return result
 
     def get_image(self, path):
         with rasterio.open(path, 'r', driver='GTiff') as src:
@@ -92,5 +100,8 @@ class SEN12MSCR_Dataset(Dataset):
                 data_image[channel] = np.clip(data_image[channel], self.clip_min[data_type - 1][channel],
                                               self.clip_max[data_type - 1][channel])
             data_image /= self.scale
-
+        elif data_type == 4:
+            for channel in range(len(data_image)):
+                data_image[channel] = np.clip(data_image[channel], self.clip_min[data_type - 1][channel],
+                                              self.clip_max[data_type - 1][channel])
         return data_image

@@ -37,13 +37,12 @@ class UNet_new(nn.Module):
         self.up2 = (Up(1024, 512 // factor, bilinear))
         self.up3 = (Up(512, 256 // factor, bilinear))
         self.up4 = (Up(256, 128 // factor, bilinear))
-        # self.up5 = (Up(128, 64, bilinear))
         self.cbam_block = CBAM_Block(128 // factor, 128 // factor)
         self.cbam1 = CBAM(128)
         self.cbam2 = CBAM(256)
         self.cbam3 = CBAM(512)
         self.cbam4 = CBAM(1024)
-        self.cbam5 = CBAM(1024)
+        self.cbam5 = CBAM(2048 // factor)
         self.outc = (OutConv(128 // factor, out_channels))
 
     def forward(self, x1, x2):
@@ -64,8 +63,8 @@ class UNet_new(nn.Module):
         x = self.up3(x, x2)
         x = self.up4(x, x1)
         x = self.cbam_block(x)
-        logits = self.outc(x)
-        return logits
+        x = self.outc(x)
+        return x
 
 
 class UNet(nn.Module):
@@ -104,7 +103,7 @@ class UNet(nn.Module):
 if __name__ == '__main__':
     s2 = torch.zeros((1, 13, 256, 256))
     s1 = torch.zeros((1, 2, 256, 256))
-    unet = UNet_new(2, 13, 3)
+    unet = UNet_new(2, 13, 3, bilinear=False)
     output = unet(s1, s2)
     torch.save(unet.state_dict(), f'checkpoint_test.pth')
     print(output.shape)
