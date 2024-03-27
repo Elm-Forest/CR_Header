@@ -11,7 +11,6 @@ from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
-from Charbonnier_Loss import L1_Charbonnier_loss
 from color_loss import ColorLoss
 from dataset import SEN12MSCR_Dataset, get_filelists
 from ssim_tools import ssim
@@ -28,7 +27,7 @@ parser.add_argument('--sar_dir', type=str, default='K:/dataset/selected_data_fol
 parser.add_argument('--data_list_filepath', type=str,
                     default='E:/Development Program/Pycharm Program/ECANet/csv/datasetfilelist.csv')
 parser.add_argument('--optimizer', type=str, default='Adam', help='Adam')
-parser.add_argument('--lr', type=float, default=1e-5, help='learning rate of optimizer')
+parser.add_argument('--lr', type=float, default=2e-5, help='learning rate of optimizer')
 parser.add_argument('--lr_step', type=int, default=2, help='lr decay rate')
 parser.add_argument('--lr_start_epoch_decay', type=int, default=1, help='epoch to start lr decay')
 parser.add_argument('--epoch', type=int, default=10)
@@ -100,15 +99,16 @@ if len(opts.gpu_ids) > 1:
     os.environ["CUDA_VISIBLE_DEVICES"] = opts.gpu_ids
     meta_learner = nn.DataParallel(meta_learner)
 
-optimizer = optim.RAdam(meta_learner.parameters(), lr=opts.lr, weight_decay=opts.weight_decay)
+optimizer = optim.Adam(meta_learner.parameters(), lr=opts.lr, weight_decay=opts.weight_decay)
 criterion_L1 = nn.SmoothL1Loss().to(device)
 criterion_Color = ColorLoss().to(device)
 criterion_L2 = nn.MSELoss().to(device)
 num_epochs = opts.epoch
 log_step = opts.log_freq
 
+
 def lr_lambda(ep):
-    initial_lr = 1e-5
+    initial_lr = 2e-5
     final_lr = 5e-6
     lr_decay = final_lr / initial_lr
     return 1 - (1 - lr_decay) * (ep / (num_epochs - 1))
