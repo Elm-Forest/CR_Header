@@ -100,13 +100,12 @@ if len(opts.gpu_ids) > 1:
     os.environ["CUDA_VISIBLE_DEVICES"] = opts.gpu_ids
     meta_learner = nn.DataParallel(meta_learner)
 
-optimizer = optim.NAdam(meta_learner.parameters(), lr=opts.lr, weight_decay=opts.weight_decay)
-criterion_L1 = L1_Charbonnier_loss().to(device)
+optimizer = optim.RAdam(meta_learner.parameters(), lr=opts.lr, weight_decay=opts.weight_decay)
+criterion_L1 = nn.SmoothL1Loss().to(device)
 criterion_Color = ColorLoss().to(device)
 criterion_L2 = nn.MSELoss().to(device)
 num_epochs = opts.epoch
 log_step = opts.log_freq
-
 
 def lr_lambda(ep):
     initial_lr = 1e-5
@@ -146,7 +145,7 @@ for epoch in range(num_epochs):
             targets_rgb = targets[:, 1:4, :, :]
         else:
             targets_rgb = targets
-        loss_l1 = criterion_L2(outputs, targets_rgb)
+        loss_l1 = criterion_L1(outputs, targets_rgb)
         # loss_color = criterion_Color(outputs, targets_rgb)
         # loss = loss_l1 * 100 + loss_color * 0.01
         loss = loss_l1
@@ -220,7 +219,7 @@ for epoch in range(num_epochs):
             else:
                 targets_rgb = targets
 
-            loss = criterion_L2(outputs, targets_rgb)
+            loss = criterion_L1(outputs, targets_rgb)
 
             running_val_loss = loss.item()
             running_loss += running_val_loss
