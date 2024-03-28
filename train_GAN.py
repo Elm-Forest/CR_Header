@@ -26,12 +26,12 @@ parser.add_argument('--data_list_filepath', type=str,
                     default='E:/Development Program/Pycharm Program/ECANet/csv/datasetfilelist.csv')
 parser.add_argument('--optimizer', type=str, default='Adam', help='Adam')
 parser.add_argument('--lr_gen', type=float, default=1e-4, help='learning rate of optimizer')
-parser.add_argument('--lr_dis', type=float, default=5e-5, help='learning rate of optimizer')
+parser.add_argument('--lr_dis', type=float, default=3e-5, help='learning rate of optimizer')
 parser.add_argument('--lr_step', type=int, default=2, help='lr decay rate')
 parser.add_argument('--lr_start_epoch_decay', type=int, default=1, help='epoch to start lr decay')
 parser.add_argument('--epoch', type=int, default=10)
 parser.add_argument('--save_freq', type=int, default=1)
-parser.add_argument('--dis_backward_delay', type=int, default=1)
+parser.add_argument('--dis_backward_delay', type=int, default=2)
 parser.add_argument('--crop_size', type=int, default=None)
 parser.add_argument('--num_workers', type=int, default=0)
 parser.add_argument('--log_freq', type=int, default=10)
@@ -39,7 +39,7 @@ parser.add_argument('--save_model_dir', type=str, default='./weights',
                     help='directory used to store trained networks')
 parser.add_argument('--is_test', type=bool, default=False)
 parser.add_argument('--gpu_ids', type=str, default='0')
-parser.add_argument('--val_batch_size', type=int, default=1)
+parser.add_argument('--val_batch_size', type=int, default=2)
 parser.add_argument('--checkpoint', type=str, default="./checkpoint")
 parser.add_argument('--frozen', type=bool, default=False)
 parser.add_argument('--speed', type=bool, default=False)
@@ -135,6 +135,7 @@ for epoch in range(num_epochs):
         fake_labels = torch.zeros(batch_size, 1, device=device)
         concatenated = torch.cat((inputs, inputs2), dim=1)  # 假设这是另一种形式的输入
         fake_images = generator(sars, concatenated)
+        delay_steps += 1
         if delay_steps % opts.dis_backward_delay == 0:
             # 训练判别器D
             optimizer_D.zero_grad()
@@ -157,7 +158,7 @@ for epoch in range(num_epochs):
             loss_D.backward()
             optimizer_D.step()
             delay_steps = 0
-        delay_steps += 1
+
         # 训练生成器G
         optimizer_G.zero_grad()
         fake_ab = torch.cat((fake_images, inputs[:, 1:4, :, :], inputs2[:, 1:4, :, :], sars), 1)  # 使用生成的图像
