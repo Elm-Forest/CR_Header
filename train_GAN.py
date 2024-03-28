@@ -31,10 +31,11 @@ parser.add_argument('--lr_step', type=int, default=2, help='lr decay rate')
 parser.add_argument('--lr_start_epoch_decay', type=int, default=1, help='epoch to start lr decay')
 parser.add_argument('--epoch', type=int, default=10)
 parser.add_argument('--save_freq', type=int, default=1)
+parser.add_argument('--dis_backward_delay', type=int, default=1)
 parser.add_argument('--crop_size', type=int, default=None)
 parser.add_argument('--num_workers', type=int, default=0)
 parser.add_argument('--log_freq', type=int, default=10)
-parser.add_argument('--save_model_dir', type=str, default='./weights/meta_cbam.pth',
+parser.add_argument('--save_model_dir', type=str, default='./weights',
                     help='directory used to store trained networks')
 parser.add_argument('--is_test', type=bool, default=False)
 parser.add_argument('--gpu_ids', type=str, default='0')
@@ -118,6 +119,9 @@ for epoch in range(num_epochs):
     original_ssim2 = 0.0
     running_psnr = 0.0
     running_loss_dis = 0.0
+    running_loss_L1 = 0.0
+    running_loss_GAN = 0.0
+    delay_steps = 0
     for i, images in enumerate(train_dataloader):
 
         # 准备真实图像和标签
@@ -131,26 +135,29 @@ for epoch in range(num_epochs):
         fake_labels = torch.zeros(batch_size, 1, device=device)
         concatenated = torch.cat((inputs, inputs2), dim=1)  # 假设这是另一种形式的输入
         fake_images = generator(sars, concatenated)
-        # 训练判别器D
-        optimizer_D.zero_grad()
+        if delay_steps % opts.dis_backward_delay == 0:
+            # 训练判别器D
+            optimizer_D.zero_grad()
 
-        # 真实图像通过D
-        real_ab = torch.cat((real_images, inputs[:, 1:4, :, :], inputs2[:, 1:4, :, :], sars), 1)  # 真实图像对
-        pred_real = discriminator(real_ab)
-        loss_D_real = (torch.sum(criterionSoftplus(-pred_real))
-                       / pred_real.size(0) / pred_real.size(2) / pred_real.size(3))
+            # 真实图像通过D
+            real_ab = torch.cat((real_images, inputs[:, 1:4, :, :], inputs2[:, 1:4, :, :], sars), 1)  # 真实图像对
+            pred_real = discriminator(real_ab)
+            loss_D_real = (torch.sum(criterionSoftplus(-pred_real))
+                           / pred_real.size(0) / pred_real.size(2) / pred_real.size(3))
 
-        # 生成假图像并通过D
-        fake_ab = torch.cat((fake_images.detach(), inputs[:, 1:4, :, :], inputs2[:, 1:4, :, :], sars), 1)  # 使用生成的图像
-        pred_fake = discriminator(fake_ab)
-        loss_D_fake = (torch.sum(criterionSoftplus(pred_fake))
-                       / pred_fake.size(0) / pred_fake.size(2) / pred_fake.size(3))
+            # 生成假图像并通过D
+            fake_ab = torch.cat((fake_images.detach(), inputs[:, 1:4, :, :], inputs2[:, 1:4, :, :], sars), 1)  # 使用生成的图像
+            pred_fake = discriminator(fake_ab)
+            loss_D_fake = (torch.sum(criterionSoftplus(pred_fake))
+                           / pred_fake.size(0) / pred_fake.size(2) / pred_fake.size(3))
 
-        # 更新D
-        loss_D = (loss_D_real + loss_D_fake) * 0.5
-        loss_D.backward()
-        optimizer_D.step()
-
+            # 更新D
+            loss_D = (loss_D_real + loss_D_fake) * 0.5
+            running_loss_dis += loss_D.item()
+            loss_D.backward()
+            optimizer_D.step()
+            delay_steps = 0
+        delay_steps += 1
         # 训练生成器G
         optimizer_G.zero_grad()
         fake_ab = torch.cat((fake_images, inputs[:, 1:4, :, :], inputs2[:, 1:4, :, :], sars), 1)  # 使用生成的图像
@@ -167,7 +174,8 @@ for epoch in range(num_epochs):
         optimizer_G.step()
 
         running_loss += loss_G.item()
-        running_loss_dis += loss_D.item()
+        running_loss_L1 += loss_G_L1.item()
+        running_loss_GAN += loss_G_GAN.item()
         targets_rgb = real_images
         outputs_np = fake_images.cpu().detach().numpy()
         targets_np = targets_rgb.cpu().detach().numpy()
@@ -191,7 +199,9 @@ for epoch in range(num_epochs):
         if (i + 1) % log_step == 0:
             print(f"Epoch [{epoch + 1}/{num_epochs}], Step [{i + 1}/{len(train_dataloader)}], "
                   f"Loss_gen: {running_loss / log_step:.4f}, "
-                  f"Loss_dis: {running_loss_dis / log_step:.4f}, "
+                  f"Loss_dis: {running_loss_dis / (log_step / opts.dis_backward_delay):.4f}, "
+                  f"Loss_L1: {running_loss_L1 / log_step:.4f} * {lambda_L1}, "
+                  f"Loss_GAN: {running_loss_GAN / log_step:.4f}, "
                   f"SSIM: {running_ssim / log_step:.4f}, "
                   f"PSNR: {running_psnr / log_step:.4f}, "
                   f"ORI_SSIM: {original_ssim / log_step:.4f}, "
@@ -202,7 +212,8 @@ for epoch in range(num_epochs):
             original_ssim = 0.0
             original_ssim2 = 0.0
             running_loss_dis = 0.0
-
+            running_loss_GAN = 0.0
+            running_loss_L1 = 0.0
     scheduler_G.step()
     scheduler_D.step()
     print('start val')
@@ -287,6 +298,8 @@ for epoch in range(num_epochs):
     generator.train()
 
     if epoch % opts.save_freq == 0:
-        torch.save(generator.state_dict(), os.path.join(opts.checkpoint, f'checkpoint_{epoch}.pth'))
+        torch.save(generator.state_dict(), os.path.join(opts.checkpoint, f'checkpoint_gen_{epoch}.pth'))
+        torch.save(discriminator.state_dict(), os.path.join(opts.checkpoint, f'checkpoint_dis_{epoch}.pth'))
 
-torch.save(generator.state_dict(), opts.save_model_dir)
+torch.save(generator.state_dict(), os.path.join(opts.save_model_dir, f'gen_{num_epochs}.pth'))
+torch.save(discriminator.state_dict(), os.path.join(opts.save_model_dir, f'dis_{num_epochs}.pth'))
