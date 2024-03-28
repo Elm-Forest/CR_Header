@@ -246,7 +246,7 @@ for epoch in range(num_epochs):
             running_psnr += val_psnr
             running_ssim += val_ssim
             original_ssim += ori_ssim
-            original_ssim2 += ori_ssim
+            original_ssim2 += ori_ssim2
             if (i + 1) % log_step == 0:
                 print(f"VAL: Step [{i + 1}/{len(val_dataloader)}], "
                       f"Loss: {running_loss / log_step:.4f}, "
