@@ -82,6 +82,11 @@ criterion_L1 = nn.SmoothL1Loss().to(device)
 criterion_GAN = nn.MSELoss()
 num_epochs = opts.epoch
 log_step = opts.log_freq
+if len(opts.gpu_ids) > 1:
+    print("Parallel training!")
+    os.environ["CUDA_VISIBLE_DEVICES"] = opts.gpu_ids
+    generator = nn.DataParallel(generator)
+    discriminator = nn.DataParallel(discriminator)
 
 optimizer_G = torch.optim.Adam(generator.parameters(), lr=opts.lr_gen, betas=(0.5, 0.999))
 optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opts.lr_dis, betas=(0.5, 0.999))
