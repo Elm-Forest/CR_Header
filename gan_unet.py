@@ -1,4 +1,7 @@
+import torch
 from torch import nn
+
+from uent_model import UNet_new
 
 
 class Discriminator(nn.Module):
@@ -29,3 +32,8 @@ class Discriminator(nn.Module):
 
     def forward(self, x):
         return self.model(x)
+
+
+if __name__ == '__main__':
+    torch.save(Discriminator(3).state_dict(), './model_test/d.pth')
+    torch.save(UNet_new(2, 13, 3, bilinear=True).state_dict(), './model_test/g.pth')

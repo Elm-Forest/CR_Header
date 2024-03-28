@@ -25,7 +25,8 @@ parser.add_argument('--sar_dir', type=str, default='K:/dataset/selected_data_fol
 parser.add_argument('--data_list_filepath', type=str,
                     default='E:/Development Program/Pycharm Program/ECANet/csv/datasetfilelist.csv')
 parser.add_argument('--optimizer', type=str, default='Adam', help='Adam')
-parser.add_argument('--lr', type=float, default=1e-4, help='learning rate of optimizer')
+parser.add_argument('--lr_gen', type=float, default=1e-4, help='learning rate of optimizer')
+parser.add_argument('--lr_dis', type=float, default=1e-5, help='learning rate of optimizer')
 parser.add_argument('--lr_step', type=int, default=2, help='lr decay rate')
 parser.add_argument('--lr_start_epoch_decay', type=int, default=1, help='epoch to start lr decay')
 parser.add_argument('--epoch', type=int, default=10)
@@ -78,24 +79,31 @@ generator = UNet_new(2, 26, 3, bilinear=True).to(device)
 discriminator = Discriminator(in_channels=3).to(device)
 
 criterion_L1 = nn.SmoothL1Loss().to(device)
-criterion_GAN = nn.BCELoss()
+criterion_GAN = nn.MSELoss()
 num_epochs = opts.epoch
 log_step = opts.log_freq
 
-optimizer_G = torch.optim.Adam(generator.parameters(), lr=opts.lr, betas=(0.5, 0.999))
-optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opts.lr, betas=(0.5, 0.999))
+optimizer_G = torch.optim.Adam(generator.parameters(), lr=opts.lr_gen, betas=(0.5, 0.999))
+optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opts.lr_dis, betas=(0.5, 0.999))
 lambda_L1 = 100
 
 
-def lr_lambda(ep):
+def lr_lambda_gen(ep):
     initial_lr = 1e-4
     final_lr = 1e-5
     lr_decay = final_lr / initial_lr
     return 1 - (1 - lr_decay) * (ep / (num_epochs - 1))
 
 
-scheduler_G = LambdaLR(optimizer_G, lr_lambda)
-scheduler_D = LambdaLR(optimizer_D, lr_lambda)
+def lr_lambda_dis(ep):
+    initial_lr = 1e-5
+    final_lr = 6e-6
+    lr_decay = final_lr / initial_lr
+    return 1 - (1 - lr_decay) * (ep / (num_epochs - 1))
+
+
+scheduler_G = LambdaLR(optimizer_G, lr_lambda_gen)
+scheduler_D = LambdaLR(optimizer_D, lr_lambda_dis)
 print('Start Training!')
 
 for epoch in range(num_epochs):
@@ -104,6 +112,7 @@ for epoch in range(num_epochs):
     original_ssim = 0.0
     original_ssim2 = 0.0
     running_psnr = 0.0
+    running_loss_dis = 0.0
     for i, images in enumerate(train_dataloader):
 
         # 准备真实图像和标签
@@ -146,7 +155,8 @@ for epoch in range(num_epochs):
         loss_G.backward()
         optimizer_G.step()
 
-        running_loss += loss_G_L1.item()
+        running_loss += loss_G.item()
+        running_loss_dis += loss_D.item()
         targets_rgb = real_images
         outputs_np = fake_images.cpu().detach().numpy()
         targets_np = targets_rgb.cpu().detach().numpy()
@@ -169,7 +179,8 @@ for epoch in range(num_epochs):
 
         if (i + 1) % log_step == 0:
             print(f"Epoch [{epoch + 1}/{num_epochs}], Step [{i + 1}/{len(train_dataloader)}], "
-                  f"Loss: {running_loss / log_step:.4f}, "
+                  f"Loss_gen: {running_loss / log_step:.4f}, "
+                  f"Loss_dis: {running_loss_dis / log_step:.4f}, "
                   f"SSIM: {running_ssim / log_step:.4f}, "
                   f"PSNR: {running_psnr / log_step:.4f}, "
                   f"ORI_SSIM: {original_ssim / log_step:.4f}, "

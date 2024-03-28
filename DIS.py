@@ -33,14 +33,13 @@ class _Discriminator(nn.Module):
 class Discriminator(nn.Module):
     def __init__(self, in_ch, out_ch, gpu_ids):
         super().__init__()
-        self.gpu_ids = gpu_ids
-
         self.dis = nn.Sequential(OrderedDict([('dis', _Discriminator(in_ch, out_ch))]))
 
         self.dis.apply(weights_init)
 
     def forward(self, x):
-        if self.gpu_ids:
-            return nn.parallel.data_parallel(self.dis, x, self.gpu_ids)
-        else:
-            return self.dis(x)
+        return self.dis(x)
+
+
+if __name__ == '__main__':
+    torch.save(Discriminator(3, 3, 0).state_dict(), './model_test/d2.pth')
