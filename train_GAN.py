@@ -102,8 +102,8 @@ def lr_lambda_gen(ep):
 
 
 def lr_lambda_dis(ep):
-    initial_lr = 1e-5
-    final_lr = 6e-6
+    initial_lr = 1e-4
+    final_lr = 1e-5
     lr_decay = final_lr / initial_lr
     return 1 - (1 - lr_decay) * (ep / (num_epochs - 1))
 
