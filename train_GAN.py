@@ -131,8 +131,6 @@ for epoch in range(num_epochs):
         inputs2 = images["input2"].to(device)
 
         batch_size = real_images.size(0)
-        real_labels = torch.ones(batch_size, 1, device=device)
-        fake_labels = torch.zeros(batch_size, 1, device=device)
         concatenated = torch.cat((inputs, inputs2), dim=1)  # 假设这是另一种形式的输入
         fake_images = generator(sars, concatenated)
         delay_steps += 1
@@ -304,3 +302,5 @@ for epoch in range(num_epochs):
 
 torch.save(generator.state_dict(), os.path.join(opts.save_model_dir, f'gen_{num_epochs}.pth'))
 torch.save(discriminator.state_dict(), os.path.join(opts.save_model_dir, f'dis_{num_epochs}.pth'))
+torch.save(generator, os.path.join(opts.save_model_dir, f'gen_{num_epochs}_instance.pth'))
+torch.save(discriminator, os.path.join(opts.save_model_dir, f'dis_{num_epochs}_instance.pth'))
