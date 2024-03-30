@@ -113,7 +113,7 @@ if len(opts.gpu_ids) > 1:
 
         train_sampler = DistributedSampler(train_dataset)
         train_dataloader = DataLoader(train_dataset, sampler=train_sampler, batch_size=opts.batch_size,
-                                      num_workers=opts.num_workers, pin_memory=True, shuffle=True)
+                                      num_workers=opts.num_workers, pin_memory=True, shuffle=False)
 
     meta_learner = nn.DataParallel(meta_learner)
 
