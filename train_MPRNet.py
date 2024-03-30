@@ -12,7 +12,6 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 
 from Charbonnier_Loss import EdgeLoss, L1_Charbonnier_loss
-from MPRNet import MPRNet
 from MemoryNet import MemoryNet
 from dataset import SEN12MSCR_Dataset, get_filelists
 from ssim_tools import ssim
@@ -40,6 +39,7 @@ parser.add_argument('--save_model_dir', type=str, default='./weights/meta_cbam.p
                     help='directory used to store trained networks')
 parser.add_argument('--is_test', type=bool, default=False)
 parser.add_argument('--gpu_ids', type=str, default='0')
+parser.add_argument("--local_rank", default=os.getenv('LOCAL_RANK', -1), type=int)
 parser.add_argument('--val_batch_size', type=int, default=1)
 parser.add_argument('--checkpoint', type=str, default="./checkpoint")
 parser.add_argument('--frozen', type=bool, default=False)
@@ -75,7 +75,14 @@ train_dataloader = DataLoader(train_dataset, batch_size=opts.batch_size, num_wor
 val_dataloader = DataLoader(val_dataset, batch_size=opts.batch_size, num_workers=opts.num_workers, shuffle=False)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+if len(opts.gpu_ids) > 1:
+    print("Parallel training!")
+    os.environ["CUDA_VISIBLE_DEVICES"] = opts.gpu_ids
+    if opts.local_rank != -1:
+        torch.cuda.set_device(opts.local_rank)
+        device = torch.device("cuda", opts.local_rank)
+        torch.distributed.init_process_group(backend="nccl", init_method='env://')
+    os.environ["CUDA_VISIBLE_DEVICES"] = opts.gpu_ids
 if opts.use_sar and opts.use_input2 is False:
     print('create unet_new inc=13')
     meta_learner = UNet_new(2, 13, 3).to(device)
@@ -88,14 +95,26 @@ else:
 
 # meta_learner.apply(weights_init)
 if opts.load_weights and opts.weights_path is not None:
+    print("Loading weights!")
     weights = torch.load(opts.weights_path)
     try:
         meta_learner.load_state_dict(weights['state_dict'], strict=False)
     except:
         pass
+train_sampler = None
 if len(opts.gpu_ids) > 1:
     print("Parallel training!")
-    os.environ["CUDA_VISIBLE_DEVICES"] = opts.gpu_ids
+    num_gpus = torch.cuda.device_count()
+    if num_gpus > 1:
+        print('use {} gpus!'.format(num_gpus))
+        meta_learner = nn.parallel.DistributedDataParallel(meta_learner, device_ids=[opts.local_rank],
+                                                           output_device=opts.local_rank)
+        from torch.utils.data.distributed import DistributedSampler
+
+        train_sampler = DistributedSampler(train_dataset)
+        train_dataloader = DataLoader(train_dataset, sampler=train_sampler, batch_size=opts.batch_size,
+                                      num_workers=opts.num_workers, pin_memory=True, shuffle=True)
+
     meta_learner = nn.DataParallel(meta_learner)
 
 optimizer = optim.Adam(meta_learner.parameters(), lr=opts.lr, weight_decay=opts.weight_decay)
@@ -123,7 +142,8 @@ for epoch in range(num_epochs):
     original_ssim = 0.0
     original_ssim2 = 0.0
     running_psnr = 0.0
-
+    if len(opts.gpu_ids) > 1:
+        train_sampler.set_epoch(epoch)
     for i, images in enumerate(train_dataloader):
         optimizer.zero_grad()
         inputs = images["input"].to(device)
