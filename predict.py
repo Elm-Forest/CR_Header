@@ -9,20 +9,51 @@ from uent_model import UNet_new
 device = torch.device("cpu")
 
 
+def get_preview(file, predicted_file=False, bands=None, brighten_limit=None, sar_composite=False):
+    if bands is None:
+        bands = [4, 3, 2]
+    if not predicted_file:
+        # with rasterio.open(file, 'r', driver='GTiff') as src:
+        #     r, g, b = src.read(bands)
+        with rasterio.open(file, 'r', driver='GTiff') as src:
+            image = src.read()
+        r = image[3]
+        g = image[2]
+        b = image[1]
+    else:
+        # original_channels_output = file[:13, :, :]  # 提取前13个通道
+        # from Code.tools.tools import save_tensor_to_geotiff
+        # save_tensor_to_geotiff(original_channels_output, path_out='K://test//gg.tif')
+        # file is actually the predicted array
+        r = file[bands[0] - 1]
+        g = file[bands[1] - 1]
+        b = file[bands[2] - 1]
+
+    if brighten_limit is None:
+        return get_rgb_preview(r, g, b, brighten_limit=None, sar_composite=sar_composite)
+    else:
+        r = np.clip(r, 0, brighten_limit)
+        g = np.clip(g, 0, brighten_limit)
+        b = np.clip(b, 0, brighten_limit)
+        return get_rgb_preview(r, g, b, brighten_limit=None, sar_composite=sar_composite)
+
+
 def get_image(path):
-    with rasterio.open(path, 'r') as src:
+    with rasterio.open(path, 'r', driver='GTiff') as src:
         image = src.read()
-        image = np.nan_to_num(image, nan=np.nanmean(image))  # fill NaN with the mean
+        # image = np.nan_to_num(image, nan=np.nanmean(image))  # fill NaN with the mean
     return image
 
 
 def get_normalized_data(data_image, data_type=2):
-    clip_min = [[-25.0, -32.5], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    clip_min = [[-25.0, -32.5],
+                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
     clip_max = [[0, 0],
                 [10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000],
+                [10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000],
                 [10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000]]
-
     max_val = 1
     scale = 10000
     # SAR
@@ -39,7 +70,10 @@ def get_normalized_data(data_image, data_type=2):
             data_image[channel] = np.clip(data_image[channel], clip_min[data_type - 1][channel],
                                           clip_max[data_type - 1][channel])
         data_image /= scale
-
+    elif data_type == 4:
+        for channel in range(len(data_image)):
+            data_image[channel] = np.clip(data_image[channel], clip_min[data_type - 1][channel],
+                                          clip_max[data_type - 1][channel])
     return data_image
 
 
@@ -114,13 +148,13 @@ def get_rgb_preview(r, g, b, brighten_limit=None, sar_composite=False):
 
 
 if __name__ == '__main__':
-    name = 'ROIs1158_spring_8_p403.tif'  # 113p169
+    name = 'ROIs1158_spring_6_p713.tif'  # 113p169
     input_image = f'K:/dataset/ensemble/dsen2/{name}'
     input_image2 = f'K:/dataset/ensemble/clf/{name}'
     cloudy_image = f'K:\dataset\selected_data_folder\s2_cloudy\\{name}'
     target_image = f'K:\dataset\selected_data_folder\s2_cloudFree\\{name}'
     sar_image = f'K:\dataset\selected_data_folder\s1\\{name}'
-    meta_path = 'checkpoint/checkpoint_7.pth'
+    meta_path = 'weights/gen_60.pth'
     images = build_data(input_image, target_image, cloudy_image, sar_image, input_image2)
     inputs = images["input"]
     inputs2 = images["input2"] * 10000

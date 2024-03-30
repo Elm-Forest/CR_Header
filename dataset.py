@@ -4,6 +4,7 @@ import random
 import numpy as np
 import rasterio
 import torch
+from skimage.metrics import structural_similarity as ssim
 from torch.utils.data import Dataset
 
 import csv
@@ -59,10 +60,10 @@ class SEN12MSCR_Dataset(Dataset):
         input_image = self.get_image(input_path).astype('float32')
         target_image = self.get_image(target_path).astype('float32')
 
-        input_image = self.get_normalized_data(input_image, data_type=2)
-        input_image = torch.from_numpy(input_image)
-        target_image = self.get_normalized_data(target_image, data_type=3)
-        target_image = torch.from_numpy(target_image)
+        input_image_np = self.get_normalized_data(input_image, data_type=2)
+        input_image = torch.from_numpy(input_image_np)
+        target_image_np = self.get_normalized_data(target_image, data_type=3)
+        target_image = torch.from_numpy(target_image_np)
         x, y = 0, 0
         if self.crop_size is not None:
             y = random.randint(0, np.maximum(0, self.crop_size))
@@ -83,11 +84,17 @@ class SEN12MSCR_Dataset(Dataset):
         if self.inputs_dir2 is not None:
             input_path2 = os.path.join(self.inputs_dir2, fileID)
             input_image2 = self.get_image(input_path2).astype('float32')
-            input_image2 = self.get_normalized_data(input_image2, data_type=4)
-            input_image2 = torch.from_numpy(input_image2)
+            input_image2_np = self.get_normalized_data(input_image2, data_type=4)
+            input_image2 = torch.from_numpy(input_image2_np)
             if self.crop_size is not None:
                 input_image2 = input_image2[..., y:y + self.crop_size, x:x + self.crop_size]
             result['input2'] = input_image2
+            result['attention'] = torch.from_numpy(
+                self.get_attention_map(input1=input_image_np, targets=target_image_np,
+                                       input2=input_image2_np))
+        else:
+            result['attention'] = torch.from_numpy(
+                self.get_attention_map(input1=input_image_np, targets=target_image_np))
         return result
 
     def get_image(self, path):
@@ -120,3 +127,64 @@ class SEN12MSCR_Dataset(Dataset):
                 data_image[channel] = np.clip(data_image[channel], self.clip_min[data_type - 1][channel],
                                               self.clip_max[data_type - 1][channel])
         return data_image
+
+    def get_attention_map(self, input1, targets, input2=None):
+        x = input1
+        t = targets
+        inputs_R = x[3]
+        inputs_G = x[2]
+        inputs_B = x[1]
+        targets_R = t[3]
+        targets_G = t[2]
+        targets_B = t[1]
+        x = self.get_rgb_preview(inputs_R, inputs_G, inputs_B,
+                                 brighten_limit=2000)
+        t = self.get_rgb_preview(targets_R, targets_G, targets_B,
+                                 brighten_limit=2000)
+        x_gray = np.mean(x, axis=2).astype(np.float32)
+        t_gray = np.mean(t, axis=2).astype(np.float32)
+        _, M_ssim_x = ssim(t_gray, x_gray, full=True, data_range=255.0, win_size=7)
+        if input2 is not None:
+            y = input2
+            inputs2_R = y[3]
+            inputs2_G = y[2]
+            inputs2_B = y[1]
+            y = self.get_rgb_preview(inputs2_R, inputs2_G, inputs2_B,
+                                     brighten_limit=2000)
+            y_gray = np.mean(y, axis=2).astype(np.float32)
+            _, M_ssim_y = ssim(t_gray, y_gray, full=True, data_range=255.0, win_size=7)
+            M_ssim = (M_ssim_x + M_ssim_y) * 0.5
+            M_ssim = (M_ssim - M_ssim.min()) / (M_ssim.max() - M_ssim.min())
+            M_ssim = 1 - M_ssim
+        else:
+            M_ssim = M_ssim_x
+            M_ssim = (M_ssim - M_ssim.min()) / (M_ssim.max() - M_ssim.min())
+            M_ssim = 1 - M_ssim
+
+        return M_ssim
+
+    def get_rgb_preview(self, r, g, b, brighten_limit=None, sar_composite=False):
+        if brighten_limit is not None:
+            r = np.clip(r, 0, brighten_limit)
+            g = np.clip(g, 0, brighten_limit)
+            b = np.clip(b, 0, brighten_limit)
+
+        if not sar_composite:
+            rgb = np.dstack((r, g, b))
+            rgb = rgb - np.nanmin(rgb)
+            if np.nanmax(rgb) == 0:
+                rgb = 255 * np.ones_like(rgb)
+            else:
+                rgb = 255 * (rgb / np.nanmax(rgb))
+            rgb[np.isnan(rgb)] = np.nanmean(rgb)
+            return rgb.astype(np.uint8)
+
+        else:
+            HH = r
+            HV = g
+            HH = np.clip(HH, -25.0, 0)
+            HH = (HH + 25.1) * 255 / 25.1
+            HV = np.clip(HV, -32.5, 0)
+            HV = (HV + 32.6) * 255 / 32.6
+            rgb = np.dstack((np.zeros_like(HH), HH, HV))
+            return rgb.astype(np.uint8)
