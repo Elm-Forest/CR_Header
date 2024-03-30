@@ -73,8 +73,8 @@ val_dataset = SEN12MSCR_Dataset(val_filelist, inputs_dir, targets_dir, sar_dir=o
 
 train_dataloader = DataLoader(train_dataset, batch_size=opts.batch_size, num_workers=opts.num_workers, shuffle=True)
 val_dataloader = DataLoader(val_dataset, batch_size=opts.batch_size, num_workers=opts.num_workers, shuffle=False)
+device = None
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 if len(opts.gpu_ids) > 1:
     print("Parallel training!")
     os.environ["CUDA_VISIBLE_DEVICES"] = opts.gpu_ids
@@ -83,6 +83,8 @@ if len(opts.gpu_ids) > 1:
         device = torch.device("cuda", opts.local_rank)
         torch.distributed.init_process_group(backend="nccl", init_method='env://')
     os.environ["CUDA_VISIBLE_DEVICES"] = opts.gpu_ids
+else:
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 if opts.use_sar and opts.use_input2 is False:
     print('create unet_new inc=13')
     meta_learner = UNet_new(2, 13, 3).to(device)
@@ -115,7 +117,7 @@ if len(opts.gpu_ids) > 1:
         train_dataloader = DataLoader(train_dataset, sampler=train_sampler, batch_size=opts.batch_size,
                                       num_workers=opts.num_workers, pin_memory=True, shuffle=False)
 
-    meta_learner = nn.DataParallel(meta_learner)
+    # meta_learner = nn.DataParallel(meta_learner)
 
 optimizer = optim.Adam(meta_learner.parameters(), lr=opts.lr, weight_decay=opts.weight_decay)
 criterion_char = L1_Charbonnier_loss().to(device)
