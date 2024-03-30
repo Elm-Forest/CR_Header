@@ -29,13 +29,15 @@ def get_filelists(listpath):
 
 
 class SEN12MSCR_Dataset(Dataset):
-    def __init__(self, filelist, inputs_dir, targets_dir, sar_dir=None, inputs_dir2=None, crop_size=None):
+    def __init__(self, filelist, inputs_dir, targets_dir, sar_dir=None, inputs_dir2=None, crop_size=None,
+                 use_attention=False):
         self.filelist = filelist
         self.inputs_dir = inputs_dir
         self.inputs_dir2 = inputs_dir2
         self.sar_dir = sar_dir
         self.targets_dir = targets_dir
         self.crop_size = crop_size
+        self.use_attention = use_attention
         self.clip_min = [[-25.0, -32.5],
                          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -89,12 +91,14 @@ class SEN12MSCR_Dataset(Dataset):
             if self.crop_size is not None:
                 input_image2 = input_image2[..., y:y + self.crop_size, x:x + self.crop_size]
             result['input2'] = input_image2
-            result['attention'] = torch.from_numpy(
-                self.get_attention_map(input1=input_image_np, targets=target_image_np,
-                                       input2=input_image2_np))
+            if self.use_attention:
+                result['attention'] = torch.from_numpy(
+                    self.get_attention_map(input1=input_image_np, targets=target_image_np,
+                                           input2=input_image2_np))
         else:
-            result['attention'] = torch.from_numpy(
-                self.get_attention_map(input1=input_image_np, targets=target_image_np))
+            if self.use_attention:
+                result['attention'] = torch.from_numpy(
+                    self.get_attention_map(input1=input_image_np, targets=target_image_np))
         return result
 
     def get_image(self, path):
@@ -160,7 +164,6 @@ class SEN12MSCR_Dataset(Dataset):
             M_ssim = M_ssim_x
             M_ssim = (M_ssim - M_ssim.min()) / (M_ssim.max() - M_ssim.min())
             M_ssim = 1 - M_ssim
-
         return M_ssim
 
     def get_rgb_preview(self, r, g, b, brighten_limit=None, sar_composite=False):
