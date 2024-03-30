@@ -77,7 +77,7 @@ device = None
 
 if len(opts.gpu_ids) > 1:
     print("Parallel training!")
-    os.environ["CUDA_VISIBLE_DEVICES"] = opts.gpu_ids
+    # os.environ["CUDA_VISIBLE_DEVICES"] = opts.gpu_ids
     if opts.local_rank != -1:
         torch.cuda.set_device(opts.local_rank)
         device = torch.device("cuda", opts.local_rank)
@@ -98,7 +98,7 @@ else:
 # meta_learner.apply(weights_init)
 if opts.load_weights and opts.weights_path is not None:
     print("Loading weights!")
-    weights = torch.load(opts.weights_path)
+    weights = torch.load(opts.weights_path, map_location=torch.device('cpu'))
     try:
         meta_learner.load_state_dict(weights['state_dict'], strict=False)
     except:
@@ -194,12 +194,21 @@ for epoch in range(num_epochs):
         original_ssim2 += ori_ssim2
 
         if (i + 1) % log_step == 0:
-            print(f"Epoch [{epoch + 1}/{num_epochs}], Step [{i + 1}/{len(train_dataloader)}], "
-                  f"Loss: {running_loss / log_step:.4f}, "
-                  f"SSIM: {running_ssim / log_step:.4f}, "
-                  f"PSNR: {running_psnr / log_step:.4f}, "
-                  f"ORI_SSIM: {original_ssim / log_step:.4f}, "
-                  f"ORI_SSIM2: {original_ssim2 / log_step:.4f}")
+            if len(opts.gpu_ids) > 1:
+                if opts.local_rank == 0:
+                    print(f"Epoch [{epoch + 1}/{num_epochs}], Step [{i + 1}/{len(train_dataloader)}], "
+                          f"Loss: {running_loss / log_step:.4f}, "
+                          f"SSIM: {running_ssim / log_step:.4f}, "
+                          f"PSNR: {running_psnr / log_step:.4f}, "
+                          f"ORI_SSIM: {original_ssim / log_step:.4f}, "
+                          f"ORI_SSIM2: {original_ssim2 / log_step:.4f}")
+            else:
+                print(f"Epoch [{epoch + 1}/{num_epochs}], Step [{i + 1}/{len(train_dataloader)}], "
+                      f"Loss: {running_loss / log_step:.4f}, "
+                      f"SSIM: {running_ssim / log_step:.4f}, "
+                      f"PSNR: {running_psnr / log_step:.4f}, "
+                      f"ORI_SSIM: {original_ssim / log_step:.4f}, "
+                      f"ORI_SSIM2: {original_ssim2 / log_step:.4f}")
             running_loss = 0.0
             running_ssim = 0.0
             running_psnr = 0.0
@@ -272,12 +281,21 @@ for epoch in range(num_epochs):
             original_ssim += ori_ssim
             original_ssim2 += ori_ssim2
             if (i + 1) % log_step == 0:
-                print(f"VAL: Step [{i + 1}/{len(val_dataloader)}], "
-                      f"Loss: {running_loss / log_step:.4f}, "
-                      f"SSIM: {running_ssim / log_step:.4f}, "
-                      f"PSNR: {running_psnr / log_step:.4f}, "
-                      f"ORI_SSIM: {original_ssim / log_step:.4f}, "
-                      f"ORI_SSIM2: {original_ssim2 / log_step:.4f}")
+                if len(opts.gpu_ids) > 1:
+                    if opts.local_rank == 0:
+                        print(f"VAL: Step [{i + 1}/{len(val_dataloader)}], "
+                              f"Loss: {running_loss / log_step:.4f}, "
+                              f"SSIM: {running_ssim / log_step:.4f}, "
+                              f"PSNR: {running_psnr / log_step:.4f}, "
+                              f"ORI_SSIM: {original_ssim / log_step:.4f}, "
+                              f"ORI_SSIM2: {original_ssim2 / log_step:.4f}")
+                else:
+                    print(f"VAL: Step [{i + 1}/{len(val_dataloader)}], "
+                          f"Loss: {running_loss / log_step:.4f}, "
+                          f"SSIM: {running_ssim / log_step:.4f}, "
+                          f"PSNR: {running_psnr / log_step:.4f}, "
+                          f"ORI_SSIM: {original_ssim / log_step:.4f}, "
+                          f"ORI_SSIM2: {original_ssim2 / log_step:.4f}")
                 running_loss = 0.0
                 running_psnr = 0.0
                 running_ssim = 0.0
