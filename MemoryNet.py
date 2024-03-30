@@ -277,7 +277,9 @@ class MemoryNet(nn.Module):
         self.concat23 = conv(n_feat * 2, n_feat + scale_orsnetfeats, kernel_size, bias=bias)
         self.tail1 = conv(in_c, out_c, kernel_size, bias=bias)
         self.tail2 = conv(in_c, out_c, kernel_size, bias=bias)
-        self.tail3 = conv(n_feat + scale_orsnetfeats, out_c, kernel_size, bias=bias)
+        self.tail3 = conv(n_feat + scale_orsnetfeats, in_c, kernel_size, bias=bias)
+        self.relu = nn.ReLU(True)
+        self.tail = conv(in_c, out_c, kernel_size, bias=bias)
 
     def forward(self, x3_img):
         H = x3_img.size(2)
@@ -362,7 +364,6 @@ class MemoryNet(nn.Module):
         x3_cat = self.concat23(torch.cat([x3, x3_samfeats], 1))
 
         x3_cat = self.stage3_orsnet(x3_cat, feat2, res2)
-
-        stage3_img = self.tail3(x3_cat)
+        x3_cat = self.relu(self.tail3(x3_cat) + x3_img)
+        stage3_img = self.tail(x3_cat)
         return [stage3_img, stage2_img, stage1_img]
-

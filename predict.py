@@ -3,6 +3,7 @@ import rasterio
 import torch
 from matplotlib import pyplot as plt
 
+from MemoryNet import MemoryNet
 from SPANet import SPANet
 from ssim_tools import ssim
 
@@ -41,7 +42,7 @@ def get_preview(file, predicted_file=False, bands=None, brighten_limit=None, sar
 def get_image(path):
     with rasterio.open(path, 'r', driver='GTiff') as src:
         image = src.read()
-        # image = np.nan_to_num(image, nan=np.nanmean(image))  # fill NaN with the mean
+        image = np.nan_to_num(image, nan=np.nanmean(image))  # fill NaN with the mean
     return image
 
 
@@ -81,6 +82,7 @@ def build_data(input_path, target_path, cloudy_path, sar_path, input_path2):
     input_img = get_image(input_path).astype('float32')
     input_img2 = get_image(input_path2).astype('float32')
     target_img = get_image(target_path).astype('float32')
+    cloudy_img_ori = get_image(cloudy_path).astype('float32')
     cloudy_img = get_image(cloudy_path).astype('float32')
     sar_img = get_image(sar_path).astype('float32')
     input_img = get_normalized_data(input_img, 2)
@@ -91,14 +93,16 @@ def build_data(input_path, target_path, cloudy_path, sar_path, input_path2):
     return {'input': torch.from_numpy(input_img),
             'input2': torch.from_numpy(input_img2),
             'target': torch.from_numpy(target_img),
+            'cloudy_ori': torch.from_numpy(cloudy_img_ori),
             'cloudy': torch.from_numpy(cloudy_img),
             'sar': torch.from_numpy(sar_img)}
 
 
 def load_model(path):
     # meta_learner = UNet_new(2, 26, 3, bilinear=True).to(device)
-    meta_learner = SPANet(2, 26, 3, 128).to(device)
-    checkpoint = torch.load(path)
+    meta_learner = SPANet(2, 26, 3, 128)
+    meta_learner = MemoryNet(in_c=26 + 2)
+    checkpoint = torch.load(path, map_location=torch.device('cpu'))
     try:
         meta_learner.load_state_dict(checkpoint, strict=True)
     except:
@@ -107,7 +111,7 @@ def load_model(path):
 
         # 加载新的状态字典到模型
         meta_learner.load_state_dict(new_state_dict)
-    return meta_learner
+    return meta_learner.to(device)
 
 
 def get_rgb_preview(r, g, b, brighten_limit=None, sar_composite=False):
@@ -149,30 +153,31 @@ def get_rgb_preview(r, g, b, brighten_limit=None, sar_composite=False):
 
 
 if __name__ == '__main__':
-    name = 'ROIs1158_spring_63_p198.tif'  # 113p169
+    name = 'ROIs1158_spring_142_p233.tif'  # 113p167 40p40
     input_image = f'K:/dataset/ensemble/dsen2/{name}'
     input_image2 = f'K:/dataset/ensemble/clf/{name}'
     cloudy_image = f'K:\dataset\selected_data_folder\s2_cloudy\\{name}'
     target_image = f'K:\dataset\selected_data_folder\s2_cloudFree\\{name}'
     sar_image = f'K:\dataset\selected_data_folder\s1\\{name}'
-    meta_path = 'checkpoint/checkpoint_gen_58.pth'
+    meta_path = 'checkpoint/checkpoint_9.pth'
     images = build_data(input_image, target_image, cloudy_image, sar_image, input_image2)
     inputs = images["input"]
     inputs2 = images["input2"] * 10000
     avg = (inputs + inputs2) / 2
     targets = images["target"]
-    print(inputs.max())
+    cloudy_ori = images["cloudy_ori"]
     cloudy = images['cloudy']
     sar = images['sar']
     meta_learner = load_model(meta_path)
     print(inputs.unsqueeze(dim=0).shape)
-    concatenated = torch.cat((inputs.unsqueeze(dim=0), inputs2.unsqueeze(dim=0)), dim=1)
-    M, outputs = meta_learner(sar.unsqueeze(dim=0), concatenated)
+    concatenated = torch.cat((inputs.unsqueeze(dim=0), inputs2.unsqueeze(dim=0), sar.unsqueeze(dim=0)), dim=1)
+    outputs = meta_learner(concatenated)
+    outputs = outputs[0]
     outputs_rgb = outputs.cpu().detach() * 10000
     outputs_rgb = get_normalized_data(outputs_rgb.squeeze(dim=0).numpy(), 2)
-    print(ssim(inputs2[1:4, :, :].unsqueeze(0), targets[1:4, :, :].unsqueeze(0)))
-    print(ssim(inputs[1:4, :, :].unsqueeze(0), targets[1:4, :, :].unsqueeze(0)))
-    print(ssim(torch.from_numpy(outputs_rgb).unsqueeze(0), targets[1:4, :, :].unsqueeze(0)))
+    print(ssim(inputs2[1:4, :, :].unsqueeze(0), targets[1:4, :, :].unsqueeze(0), window_size=3))
+    print(ssim(inputs[1:4, :, :].unsqueeze(0), targets[1:4, :, :].unsqueeze(0), window_size=3))
+    print(ssim(torch.from_numpy(outputs_rgb).unsqueeze(0), targets[1:4, :, :].unsqueeze(0), window_size=3))
     inputs_R_channel = inputs[3, :, :]
     inputs_G_channel = inputs[2, :, :]
     inputs_B_channel = inputs[1, :, :]
@@ -182,6 +187,9 @@ if __name__ == '__main__':
     targets_R_channel = targets[3, :, :]
     targets_G_channel = targets[2, :, :]
     targets_B_channel = targets[1, :, :]
+    cloudy_R_channel_ori = cloudy_ori[3, :, :]
+    cloudy_G_channel_ori = cloudy_ori[2, :, :]
+    cloudy_B_channel_ori = cloudy_ori[1, :, :]
     cloudy_R_channel = cloudy[3, :, :]
     cloudy_G_channel = cloudy[2, :, :]
     cloudy_B_channel = cloudy[1, :, :]
@@ -195,9 +203,11 @@ if __name__ == '__main__':
     inputs_rgb = get_rgb_preview(inputs_R_channel, inputs_G_channel, inputs_B_channel, brighten_limit=2000)
     inputs_rgb2 = get_rgb_preview(inputs_R_channel2, inputs_G_channel2, inputs_B_channel2, brighten_limit=2000)
     targets_rgb = get_rgb_preview(targets_R_channel, targets_G_channel, targets_B_channel, brighten_limit=2000)
+    cloudy_rgb_ori = get_rgb_preview(cloudy_R_channel_ori, cloudy_G_channel_ori, cloudy_B_channel_ori,
+                                     brighten_limit=2000)
     cloudy_rgb = get_rgb_preview(cloudy_R_channel, cloudy_G_channel, cloudy_B_channel, brighten_limit=2000)
     output_rgb = get_rgb_preview(output_R_channel, output_G_channel, output_B_channel, brighten_limit=2000)
-    avg_rgb = get_rgb_preview(avg_R_channel, avg_G_channel, avg_B_channel, brighten_limit=2000)
+    avg_rgb = get_rgb_preview(avg_R_channel, avg_G_channel, avg_B_channel, brighten_limit=1500)
     plt.imsave('im.png', output_rgb)
     plt.figure(figsize=(6, 6))
     plt.imshow(inputs_rgb)
@@ -215,7 +225,7 @@ if __name__ == '__main__':
     plt.axis('off')  # 关闭坐标轴标号和刻度
     plt.show()
     plt.figure(figsize=(6, 6))
-    plt.imshow(cloudy_rgb)
+    plt.imshow(cloudy_rgb_ori)
     plt.title('cloudy')
     plt.axis('off')  # 关闭坐标轴标号和刻度
     plt.show()
