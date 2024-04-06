@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-from uent_model import UNet_new
+from uent_model import AttnCGAN_CR
 
 
 class Discriminator(nn.Module):
@@ -36,4 +36,4 @@ class Discriminator(nn.Module):
 
 if __name__ == '__main__':
     torch.save(Discriminator(3).state_dict(), './model_test/d.pth')
-    torch.save(UNet_new(2, 13, 3, bilinear=True).state_dict(), './model_test/g.pth')
+    torch.save(AttnCGAN_CR(2, 13, 3, bilinear=True).state_dict(), './model_test/g.pth')

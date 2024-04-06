@@ -6,7 +6,7 @@ from skimage.metrics import structural_similarity as ssim
 from feature_detectors import get_cloud_cloudshadow_mask
 from predict import get_image, get_normalized_data, get_rgb_preview
 
-name = 'ROIs1158_spring_44_p528.tif'  # ROIs1158_spring_17_p324
+name = 'ROIs1158_spring_26_p727.tif'  # ROIs1158_spring_17_p324
 input = f'K:\dataset\ensemble\dsen2\\{name}'
 input2 = f'K:\dataset\ensemble\clf\\{name}'
 cloudfree = f'K:\dataset\selected_data_folder\s2_cloudFree\\{name}'
@@ -15,8 +15,8 @@ input = get_image(input).astype('float32')  # np 13*256*256
 input2 = get_image(input2).astype('float32')  # np 13*256*256
 cloudfree = get_image(cloudfree).astype('float32')  # np 13*256*256
 cloudy_ori = get_image(cloudy_path).astype('float32')  # np 13*256*256
-cloud_mask = get_cloud_cloudshadow_mask(input, 0.5)
-# cloud_mask[cloud_mask != 0] = 1
+cloud_mask = get_cloud_cloudshadow_mask(cloudy_ori, 0.2)
+
 x = get_normalized_data(input, 2)  # np 13*256*256
 y = get_normalized_data(input2, 4)  # np 13*256*256
 t = get_normalized_data(cloudfree, 2)  # np 13*256*256
@@ -129,11 +129,16 @@ plt.imshow(M_ssim)
 plt.title('M SSIM (sum)')
 plt.axis('off')  # 关闭坐标轴标号和刻度
 plt.show()
-# # M 矩阵
-# axs[4].imshow(cloud_mask)
-# axs[4].set_title('M Matrix')
-# axs[4].axis('off')
-
+# M 矩阵
+plt.imshow(cloud_mask)
+plt.title('cloud_mask')
+plt.axis('off')  # 关闭坐标轴标号和刻度
+plt.show()
+cloud_mask[cloud_mask == -1] = 0
+plt.imshow(cloud_mask)
+plt.title('cloud_mask2')
+plt.axis('off')  # 关闭坐标轴标号和刻度
+plt.show()
 # M 矩阵
 # plt.imshow(M_ssim_use)
 # plt.title('M SSIM USE')

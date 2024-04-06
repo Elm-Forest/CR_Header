@@ -365,3 +365,124 @@ class MemoryNet(nn.Module):
         # x3_cat = self.relu(self.tail3(x3_cat) + x3_img)
         stage3_img = self.tail3(x3_cat)
         return [stage3_img + x_rgb, stage2_img, stage1_img]
+class MemoryNet2(nn.Module):
+    def __init__(self, in_c=3, out_c=3, n_feat=40, scale_unetfeats=20, scale_orsnetfeats=16, num_cab=8, kernel_size=3,
+                 reduction=4, bias=False):
+        super(MemoryNet2, self).__init__()
+        # self.memory = memory.MemModule()
+        self.memory = memory.MemModule(ptt_num=2, num_cls=10, part_num=5, fea_dim=in_c)
+        act = nn.PReLU()
+        self.shallow_feat1 = nn.Sequential(conv(in_c, n_feat, kernel_size, bias=bias),
+                                           CAB(n_feat, kernel_size, reduction, bias=bias, act=act))
+        self.shallow_feat2 = nn.Sequential(conv(in_c, n_feat, kernel_size, bias=bias),
+                                           CAB(n_feat, kernel_size, reduction, bias=bias, act=act))
+        self.shallow_feat3 = nn.Sequential(conv(in_c, n_feat, kernel_size, bias=bias),
+                                           CAB(n_feat, kernel_size, reduction, bias=bias, act=act))
+
+        # Cross Stage Feature Fusion (CSFF)
+        self.stage1_encoder = Encoder(n_feat, kernel_size, reduction, act, bias, scale_unetfeats, csff=False)
+        self.stage1_decoder = Decoder(n_feat, kernel_size, reduction, act, bias, scale_unetfeats)
+
+        self.stage2_encoder = Encoder(n_feat, kernel_size, reduction, act, bias, scale_unetfeats, csff=True)
+        self.stage2_decoder = Decoder(n_feat, kernel_size, reduction, act, bias, scale_unetfeats)
+
+        self.stage3_orsnet = ORSNet(n_feat, scale_orsnetfeats, kernel_size, reduction, act, bias, scale_unetfeats,
+                                    num_cab)
+
+        self.sam12 = SAM(n_feat, kernel_size=1, bias=bias, in_c=in_c)
+        self.sam23 = SAM(n_feat, kernel_size=1, bias=bias, in_c=in_c)
+
+        self.concat12 = conv(n_feat * 2, n_feat, kernel_size, bias=bias)
+        self.concat23 = conv(n_feat * 2, n_feat + scale_orsnetfeats, kernel_size, bias=bias)
+        self.tail1 = conv(in_c, out_c, kernel_size, bias=bias)
+        self.tail2 = conv(in_c, out_c, kernel_size, bias=bias)
+        self.tail3 = conv(n_feat + scale_orsnetfeats, in_c, kernel_size, bias=bias)
+        self.relu = nn.ReLU(True)
+        self.tail = conv(in_c, out_c, kernel_size, bias=bias)
+
+    def forward(self, x3_img,_):
+        H = x3_img.size(2)
+        W = x3_img.size(3)
+        ##é€šè¿‡memoryæ¨¡å—ä½¿å¾—å˜ä¸ºä¸‰ä¸ªåˆ†æ”¯
+        x1, x2, x3 = self.memory(x3_img)
+        # x3bot_img  = x3_img
+        # Multi-Patch Hierarchy: Split Image into four non-overlapping patches
+        # Two Patches for Stage 2
+        x2top_img = x2[:, :, 0:int(H / 2), :]
+        x2bot_img = x2[:, :, int(H / 2):H, :]
+
+        x3top_img = x3[:, :, 0:int(H / 2), :]
+        x3bot_img = x3[:, :, int(H / 2):H, :]
+
+        # Four Patches for Stage 1
+        x1ltop_img = x3top_img[:, :, :, 0:int(W / 2)]
+        x1rtop_img = x3top_img[:, :, :, int(W / 2):W]
+        x1lbot_img = x3bot_img[:, :, :, 0:int(W / 2)]
+        x1rbot_img = x3bot_img[:, :, :, int(W / 2):W]
+        ##-------------------------------------------
+        ##-------------- Stage 1---------------------
+        ##-------------------------------------------
+        ## Compute Shallow Features
+        x1ltop = self.shallow_feat1(x1ltop_img)
+        x1rtop = self.shallow_feat1(x1rtop_img)
+        x1lbot = self.shallow_feat1(x1lbot_img)
+        x1rbot = self.shallow_feat1(x1rbot_img)
+
+        ## Process features of all 4 patches with Encoder of Stage 1
+        feat1_ltop = self.stage1_encoder(x1ltop)
+        feat1_rtop = self.stage1_encoder(x1rtop)
+        feat1_lbot = self.stage1_encoder(x1lbot)
+        feat1_rbot = self.stage1_encoder(x1rbot)
+
+        ## Concat deep features
+        feat1_top = [torch.cat((k, v), 3) for k, v in zip(feat1_ltop, feat1_rtop)]
+        feat1_bot = [torch.cat((k, v), 3) for k, v in zip(feat1_lbot, feat1_rbot)]
+
+        ## Pass features through Decoder of Stage 1
+        res1_top = self.stage1_decoder(feat1_top)
+        res1_bot = self.stage1_decoder(feat1_bot)
+
+        ## Apply Supervised Attention Module (SAM)
+        x2top_samfeats, stage1_img_top = self.sam12(res1_top[0], x2top_img)
+        x2bot_samfeats, stage1_img_bot = self.sam12(res1_bot[0], x2bot_img)
+
+        ## Output image at Stage 1
+        stage1_img = torch.cat([stage1_img_top, stage1_img_bot], 2)
+        stage1_img = self.tail1(stage1_img)
+        ##-------------------------------------------
+        ##-------------- Stage 2---------------------
+        ##-------------------------------------------
+        ## Compute Shallow Features
+        x2top = self.shallow_feat2(x2top_img)
+        x2bot = self.shallow_feat2(x2bot_img)
+
+        ## Concatenate SAM features of Stage 1 with shallow features of Stage 2
+        x2top_cat = self.concat12(torch.cat([x2top, x2top_samfeats], 1))
+        x2bot_cat = self.concat12(torch.cat([x2bot, x2bot_samfeats], 1))
+
+        ## Process features of both patches with Encoder of Stage 2
+        feat2_top = self.stage2_encoder(x2top_cat, feat1_top, res1_top)
+        feat2_bot = self.stage2_encoder(x2bot_cat, feat1_bot, res1_bot)
+
+        ## Concat deep features
+        feat2 = [torch.cat((k, v), 2) for k, v in zip(feat2_top, feat2_bot)]
+
+        ## Pass features through Decoder of Stage 2
+        res2 = self.stage2_decoder(feat2)
+
+        ## Apply SAM
+        x3_samfeats, stage2_img = self.sam23(res2[0], x1)
+        stage2_img = self.tail2(stage2_img)
+        ##-------------------------------------------
+        ##-------------- Stage 3---------------------
+        ##-------------------------------------------
+        ## Compute Shallow Features
+        x3 = self.shallow_feat3(x1)
+
+        ## Concatenate SAM features of Stage 2 with shallow features of Stage 3
+        x3_cat = self.concat23(torch.cat([x3, x3_samfeats], 1))
+
+        x3_cat = self.stage3_orsnet(x3_cat, feat2, res2)
+        x3_cat = self.relu(self.tail3(x3_cat) + x3_img)
+        stage3_img = self.tail(x3_cat)
+        return [stage3_img, stage2_img, stage1_img]

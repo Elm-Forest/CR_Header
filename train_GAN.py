@@ -13,7 +13,7 @@ from torchvision import transforms
 from DIS import Discriminator
 from dataset import SEN12MSCR_Dataset, get_filelists
 from ssim_tools import ssim
-from uent_model import UNet_new
+from uent_model import AttnCGAN_CR
 
 warnings.filterwarnings('ignore')
 parser = argparse.ArgumentParser()
@@ -76,7 +76,7 @@ val_dataloader = DataLoader(val_dataset, batch_size=opts.batch_size, num_workers
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-generator = UNet_new(2, 26, 3, bilinear=True).to(device)
+generator = AttnCGAN_CR(2, 26, 3, bilinear=True).to(device)
 discriminator = Discriminator(in_ch=3, out_ch=3 + 3 + 2, gpu_ids=0).to(device)
 
 criterion_L1 = nn.SmoothL1Loss().to(device)

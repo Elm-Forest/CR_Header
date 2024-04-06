@@ -8,6 +8,7 @@ from skimage.metrics import structural_similarity as ssim
 from torch.utils.data import Dataset
 
 import csv
+from feature_detectors import get_cloud_cloudshadow_mask
 
 
 def get_filelists(listpath):
@@ -30,12 +31,13 @@ def get_filelists(listpath):
 
 class SEN12MSCR_Dataset(Dataset):
     def __init__(self, filelist, inputs_dir, targets_dir, sar_dir=None, inputs_dir2=None, crop_size=None,
-                 use_attention=False):
+                 use_attention=False, cloudy_dir=None):
         self.filelist = filelist
         self.inputs_dir = inputs_dir
         self.inputs_dir2 = inputs_dir2
         self.sar_dir = sar_dir
         self.targets_dir = targets_dir
+        self.cloudy_dir = cloudy_dir
         self.crop_size = crop_size
         self.use_attention = use_attention
         self.clip_min = [[-25.0, -32.5],
@@ -92,13 +94,18 @@ class SEN12MSCR_Dataset(Dataset):
                 input_image2 = input_image2[..., y:y + self.crop_size, x:x + self.crop_size]
             result['input2'] = input_image2
             if self.use_attention:
-                result['attention'] = torch.from_numpy(
-                    self.get_attention_map(input1=input_image_np, targets=target_image_np,
-                                           input2=input_image2_np))
+                cloudy_path = os.path.join(self.cloudy_dir, fileID)
+                cloudy_image = self.get_image(cloudy_path).astype('float32')
+                result['mask'] = torch.from_numpy(self.get_attention_mask(cloudy=cloudy_image).astype('float32'))
+                # result['attention'] = torch.from_numpy(
+                #     self.get_attention_map(input1=input_image_np, targets=target_image_np, input2=input_image2_np))
         else:
             if self.use_attention:
-                result['attention'] = torch.from_numpy(
-                    self.get_attention_map(input1=input_image_np, targets=target_image_np))
+                cloudy_path = os.path.join(self.cloudy_dir, fileID)
+                cloudy_image = self.get_image(cloudy_path).astype('float32')
+                result['mask'] = torch.from_numpy(self.get_attention_mask(cloudy=cloudy_image).astype('float32'))
+                # result['attention'] = torch.from_numpy(
+                #     self.get_attention_map(input1=input_image_np, targets=target_image_np))
         return result
 
     def get_image(self, path):
@@ -132,6 +139,11 @@ class SEN12MSCR_Dataset(Dataset):
                                               self.clip_max[data_type - 1][channel])
         return data_image
 
+    def get_attention_mask(self, cloudy=None):
+        mask = get_cloud_cloudshadow_mask(cloudy, 0.2)
+        mask[mask == -1] = 0
+        return mask
+
     def get_attention_map(self, input1, targets, input2=None):
         x = input1
         t = targets
@@ -159,12 +171,12 @@ class SEN12MSCR_Dataset(Dataset):
             _, M_ssim_y = ssim(t_gray, y_gray, full=True, data_range=255.0, win_size=7)
             M_ssim = (M_ssim_x + M_ssim_y) * 0.5
             M_ssim = (M_ssim - M_ssim.min()) / (M_ssim.max() - M_ssim.min())
-            M_ssim = 1 - M_ssim
+            attn_map = 1 - M_ssim
         else:
             M_ssim = M_ssim_x
             M_ssim = (M_ssim - M_ssim.min()) / (M_ssim.max() - M_ssim.min())
-            M_ssim = 1 - M_ssim
-        return M_ssim
+            attn_map = 1 - M_ssim
+        return attn_map
 
     def get_rgb_preview(self, r, g, b, brighten_limit=None, sar_composite=False):
         if brighten_limit is not None:

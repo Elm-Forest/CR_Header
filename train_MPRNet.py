@@ -15,7 +15,7 @@ from Charbonnier_Loss import EdgeLoss, L1_Charbonnier_loss
 from MemoryNet import MemoryNet
 from dataset import SEN12MSCR_Dataset, get_filelists
 from ssim_tools import ssim
-from uent_model import UNet_new
+from uent_model import AttnCGAN_CR
 from unet_m import NestedUNet
 
 warnings.filterwarnings('ignore')
@@ -87,7 +87,7 @@ else:
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 if opts.use_sar and opts.use_input2 is False:
     print('create unet_new inc=13')
-    meta_learner = UNet_new(2, 13, 3).to(device)
+    meta_learner = AttnCGAN_CR(2, 13, 3).to(device)
 elif opts.use_sar and opts.use_input2:
     print('create unet_new inc=26')
     #  meta_learner = UNet_new(2, 26, 3, bilinear=True).to(device)
