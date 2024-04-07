@@ -59,7 +59,7 @@ class MemoryUnit(nn.Module):
 
         return query_update
 
-    def forward(self, input, residual=False):
+    def forward(self, input):
         '''
         this is a bottom-up hierarchical stastic and summaration module
         all steps in main flow follow  part -> prototype -> cls
@@ -119,9 +119,6 @@ class MemoryUnit(nn.Module):
         sem_mem_trans = self.sem_att.permute(1, 0)
         output_sem = F.linear(sem_att_weight, sem_mem_trans)
 
-        if residual:
-            output_sem += output
-
         # return {'output': output, 'att': att_weight}  # output, att_weight
         return {'output_sem': output_sem, 'output_part': output_part, 'output_ins': output_ins}
 
@@ -133,7 +130,7 @@ class MemoryUnit(nn.Module):
 
 # NxCxHxW -> (NxHxW)xC -> addressing Mem, (NxHxW)xC -> NxCxHxW
 class MemModule(nn.Module):
-    def __init__(self, ptt_num, num_cls, part_num, fea_dim, shrink_thres=0.0025, device='cuda'):
+    def __init__(self, ptt_num, num_cls, part_num, fea_dim, shrink_thres=0.0025):
         super(MemModule, self).__init__()
         self.ptt_num = ptt_num
         self.num_cls = num_cls

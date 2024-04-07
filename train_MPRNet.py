@@ -110,7 +110,7 @@ if len(opts.gpu_ids) > 1:
     if num_gpus > 1:
         print('use {} gpus!'.format(num_gpus))
         meta_learner = nn.parallel.DistributedDataParallel(meta_learner, device_ids=[opts.local_rank],
-                                                           output_device=opts.local_rank, find_unused_parameters=True)
+                                                           output_device=opts.local_rank, find_unused_parameters=False)
         from torch.utils.data.distributed import DistributedSampler
 
         train_sampler = DistributedSampler(train_dataset)
