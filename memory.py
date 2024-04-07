@@ -59,18 +59,18 @@ class MemoryUnit(nn.Module):
 
         return query_update
 
-    def forward(self, input):
-        '''
-        this is a bottom-up hierarchical stastic and summaration module
+    def forward(self, inputs):
+        """
+        this is a bottom-up hierarchical static and summarization module
         all steps in main flow follow  part -> prototype -> cls
         input = NHW x C
         total PTT M =  num_cls (L) x ptt_num (T) x part_num (P)
         dimension C = fea_dim
-        '''
+        """
         ### for global part-unware instance PTT, act as sub flow
         # print("input = ",input.shape)
-        att_weight = F.linear(input, self.weight)
-        # we doesn't split the part dimension, there it is part-unaware NHW x M
+        att_weight = F.linear(inputs, self.weight)
+        # we don't split the part dimension, there it is part-unaware NHW x M
         # print("att_weight = ",att_weight)
         # pdb.set_trace()
         att_weight = F.softmax(att_weight, dim=1)  # NHW x M
@@ -88,35 +88,34 @@ class MemoryUnit(nn.Module):
 
         ### for global part-aware instance PTT
 
-        self.reweight_part = self.weight.view(self.num_cls * self.ptt_num, self.fea_dim, -1).permute(0, 2, 1)
-        self.reweight_part = (torch.sigmoid(self.reweight_layer_part(self.reweight_part)) * self.reweight_part).permute(
-            0, 2, 1)
-        self.part_ins_att = self.avgpool(self.reweight_part).squeeze(-1)
+        reweight_part = self.weight.view(self.num_cls * self.ptt_num, self.fea_dim, -1).permute(0, 2, 1)
+        temp = self.reweight_layer_part(reweight_part)
+        reweight_part = (torch.sigmoid(temp) * reweight_part).permute(0, 2, 1)
+        part_ins_att = self.avgpool(reweight_part).squeeze(-1)
         ins_att_weight = F.linear(output_part,
-                                  self.part_ins_att)  # this is for global part-aware instance ptt which is not used in ours [NHW, C] x[C, M] = [NHW, M]
+                                  part_ins_att)  # this is for global part-aware instance ptt which is not used in ours [NHW, C] x[C, M] = [NHW, M]
         ins_att_weight = F.softmax(ins_att_weight, dim=1)  # NHW x LT
         if self.shrink_thres > 0:
             ins_att_weight = hard_shrink_relu(ins_att_weight, lambd=self.shrink_thres)
             ins_att_weight = F.normalize(ins_att_weight, p=1, dim=1)
 
-        ins_mem_trans = self.part_ins_att.permute(1, 0)  # Mem^T, MxC
+        ins_mem_trans = part_ins_att.permute(1, 0)  # Mem^T, MxC
         output_ins = F.linear(ins_att_weight, ins_mem_trans)  # AttWeight x Mem^T^T = AW x Mem, (TxM) x (MxC) = TxC
 
         ### for semantic PTT
         # pdb.set_trace()
-        self.reweight_ins = self.part_ins_att.view(self.num_cls, self.ptt_num, self.fea_dim)
-        self.reweight_ins = (torch.sigmoid(self.reweight_layer_ins(self.reweight_ins)) * self.reweight_ins).permute(0,
-                                                                                                                    2,
-                                                                                                                    1)
-        self.sem_att = self.avgpool(self.reweight_ins).squeeze(-1)
-        sem_att_weight = F.linear(output_ins, self.sem_att)
+        reweight_ins = part_ins_att.view(self.num_cls, self.ptt_num, self.fea_dim)
+        temp = self.reweight_layer_ins(reweight_ins)
+        reweight_ins = (torch.sigmoid(temp) * reweight_ins).permute(0, 2, 1)
+        sem_att = self.avgpool(reweight_ins).squeeze(-1)
+        sem_att_weight = F.linear(output_ins, sem_att)
         sem_att_weight = F.softmax(sem_att_weight, dim=1)
 
         if self.shrink_thres > 0:
             sem_att_weight = hard_shrink_relu(sem_att_weight, lambd=self.shrink_thres)
             sem_att_weight = F.normalize(sem_att_weight, p=1, dim=1)
 
-        sem_mem_trans = self.sem_att.permute(1, 0)
+        sem_mem_trans = sem_att.permute(1, 0)
         output_sem = F.linear(sem_att_weight, sem_mem_trans)
 
         # return {'output': output, 'att': att_weight}  # output, att_weight
@@ -132,17 +131,7 @@ class MemoryUnit(nn.Module):
 class MemModule(nn.Module):
     def __init__(self, ptt_num, num_cls, part_num, fea_dim, shrink_thres=0.0025):
         super(MemModule, self).__init__()
-        self.ptt_num = ptt_num
-        self.num_cls = num_cls
-        self.part_num = part_num
-        ins_mem = False
-        if ins_mem:
-            self.mem_dim = ptt_num * num_cls * part_num  # part-level instance
-        else:
-            self.mem_dim = num_cls  # global semantic
-        self.fea_dim = fea_dim
-        self.shrink_thres = shrink_thres
-        self.memory = MemoryUnit(self.ptt_num, self.num_cls, self.part_num, self.fea_dim, self.shrink_thres)
+        self.memory = MemoryUnit(ptt_num, num_cls, part_num, fea_dim, shrink_thres)
 
     def forward(self, input):
         ###投偷懒代码###
@@ -189,7 +178,7 @@ class MemModule(nn.Module):
         #         print("memory之后y_ins = ",y_ins.shape)
         #         print("memory之后y_part = ",y_part.shape)
         ################添加融合#####################
-        tpt = (y_sem + y_ins + y_part) / 3
+        # tpt = (y_sem + y_ins + y_part) / 3
         # print(y_sem[0][0],y_ins[0][0],y_part[0][0],tpt[0][0])
         # print(tpt.shape)
         return y_sem, y_ins, y_part
@@ -198,7 +187,7 @@ class MemModule(nn.Module):
 
 
 # relu based hard shrinkage function, only works for positive values
-def hard_shrink_relu(input, lambd=0, epsilon=1e-12):
+def hard_shrink_relu(input, lambd=0.0, epsilon=1e-12):
     output = (F.relu(input - lambd) * input) / (torch.abs(input - lambd) + epsilon)
     return output
 

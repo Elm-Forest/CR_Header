@@ -509,3 +509,4 @@ if __name__ == '__main__':
     s22 = torch.zeros((1, 13, 256, 256))
     s1 = torch.zeros((1, 2, 256, 256))
     meta_learner = MemoryNet2(in_c=26 + 2)
+    meta_learner
