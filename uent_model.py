@@ -54,17 +54,16 @@ class AttnCGAN_CR(nn.Module):
             nn.BatchNorm2d(feature_c, affine=True),
             nn.ReLU(True),
         )
-        self.SAM1 = SAM(feature_c, feature_c, 1)
         self.res_block1 = Bottleneck(feature_c, feature_c)
         self.res_block2 = Bottleneck(feature_c, feature_c)
         self.res_block3 = Bottleneck(feature_c, feature_c)
         self.res_block4 = Bottleneck(feature_c, feature_c)
         self.res_block5 = Bottleneck(feature_c, feature_c)
-        self.res_block6 = Bottleneck(feature_c, feature_c)
-        self.res_block7 = Bottleneck(feature_c, feature_c)
-        self.res_block8 = Bottleneck(feature_c, feature_c)
-        self.res_block9 = Bottleneck(feature_c, feature_c)
-        self.res_block10 = Bottleneck(feature_c, feature_c)
+        # self.res_block6 = Bottleneck(feature_c, feature_c)
+        # self.res_block7 = Bottleneck(feature_c, feature_c)
+        # self.res_block8 = Bottleneck(feature_c, feature_c)
+        # self.res_block9 = Bottleneck(feature_c, feature_c)
+        # self.res_block10 = Bottleneck(feature_c, feature_c)
         self.outc = (OutConv(feature_c, out_channels))
 
     def forward(self, x11, x12, x2):
@@ -88,22 +87,18 @@ class AttnCGAN_CR(nn.Module):
         x = self.up4(x, x1)
         x = self.relu(self.out_s2(x) + x_mean)
         out = self.conv_in_reg(x)
-        attn1 = self.SAM1(out)
-        out = F.relu(self.res_block1(out) * attn1 + out)
-        out = F.relu(self.res_block2(out) * attn1 + out)
-        attn2 = self.SAM1(out)
-        out = F.relu(self.res_block3(out) * attn2 + out)
-        out = F.relu(self.res_block4(out) * attn2 + out)
-        attn3 = self.SAM1(out)
-        out = F.relu(self.res_block5(out) * attn3 + out)
-        out = F.relu(self.res_block6(out) * attn3 + out)
-        attn4 = self.SAM1(out)
-        out = F.relu(self.res_block7(out) * attn4 + out)
-        out = F.relu(self.res_block8(out) * attn4 + out)
-        out = F.relu(self.res_block9(out) + out)
-        out = F.relu(self.res_block10(out) + out)
+        out = F.relu(self.res_block1(out) + out)
+        out = F.relu(self.res_block2(out) + out)
+        out = F.relu(self.res_block3(out) + out)
+        out = F.relu(self.res_block4(out) + out)
+        out = F.relu(self.res_block5(out) + out)
+        # out = F.relu(self.res_block6(out) + out)
+        # out = F.relu(self.res_block7(out) + out)
+        # out = F.relu(self.res_block8(out) + out)
+        # out = F.relu(self.res_block9(out) + out)
+        # out = F.relu(self.res_block10(out) + out)
         out = self.outc(out)
-        return out, x, attn4
+        return out, x
 
 
 class UNet(nn.Module):

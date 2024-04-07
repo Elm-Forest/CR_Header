@@ -10,6 +10,7 @@ from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
+from Charbonnier_Loss import L1_Charbonnier_loss
 from dataset import SEN12MSCR_Dataset, get_filelists
 from gan_unet import Discriminator
 from ssim_tools import ssim
@@ -21,6 +22,7 @@ parser.add_argument('--batch_size', type=int, default=2, help='batch size used f
 parser.add_argument('--inputs_dir', type=str, default='K:/dataset/ensemble/dsen2')
 parser.add_argument('--inputs_dir2', type=str, default='K:/dataset/ensemble/clf')
 parser.add_argument('--targets_dir', type=str, default='K:/dataset/selected_data_folder/s2_cloudFree')
+parser.add_argument('--cloudy_dir', type=str, default='K:/dataset/selected_data_folder/s2_cloudy')
 parser.add_argument('--sar_dir', type=str, default='K:/dataset/selected_data_folder/s1')
 parser.add_argument('--data_list_filepath', type=str,
                     default='E:/Development Program/Pycharm Program/ECANet/csv/datasetfilelist.csv')
@@ -66,20 +68,21 @@ else:
     output_channels = 13
 train_filelist, val_filelist, _ = get_filelists(csv_filepath)
 train_dataset = SEN12MSCR_Dataset(train_filelist, inputs_dir, targets_dir, sar_dir=opts.sar_dir,
-                                  inputs_dir2=inputs_dir2, crop_size=opts.crop_size)
+                                  inputs_dir2=inputs_dir2, use_attention=True, cloudy_dir=opts.cloudy_dir)
 val_dataset = SEN12MSCR_Dataset(val_filelist, inputs_dir, targets_dir, sar_dir=opts.sar_dir, inputs_dir2=inputs_dir2,
-                                crop_size=opts.crop_size)
+                                use_attention=True, cloudy_dir=opts.cloudy_dir)
 
 train_dataloader = DataLoader(train_dataset, batch_size=opts.batch_size, num_workers=opts.num_workers, shuffle=True)
 val_dataloader = DataLoader(val_dataset, batch_size=opts.batch_size, num_workers=opts.num_workers, shuffle=False)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-generator = AttnCGAN_CR(2, 26, 3, bilinear=True).to(device)
+generator = AttnCGAN_CR(2, 13, 3, 2, bilinear=True).to(device)
 discriminator = Discriminator(in_channels=3).to(device)
 
-criterion_L1 = nn.SmoothL1Loss().to(device)
-criterion_GAN = nn.MSELoss()
+criterion_GAN = nn.MSELoss().to(device)
+criterion_L1 = L1_Charbonnier_loss().to(device)
+criterion_L2 = nn.MSELoss().to(device)
 num_epochs = opts.epoch
 log_step = opts.log_freq
 if len(opts.gpu_ids) > 1:
@@ -118,10 +121,14 @@ for epoch in range(num_epochs):
     original_ssim2 = 0.0
     running_psnr = 0.0
     running_loss_dis = 0.0
+    running_loss_rgb = 0.0
+    running_loss_s2 = 0.0
+    running_loss_M = 0.0
     for i, images in enumerate(train_dataloader):
 
         # 准备真实图像和标签
         real_images = images["target"].to(device)[:, 1:4, :, :]  # 假设去雾后的真实RGB图像
+        targets = images["target"].to(device)
         batch_size = real_images.size(0)
         real_labels = torch.ones(batch_size, 1, device=device)
         fake_labels = torch.zeros(batch_size, 1, device=device)
@@ -137,8 +144,9 @@ for epoch in range(num_epochs):
         sars = images["sar"].to(device)
         inputs = images["input"].to(device)
         inputs2 = images["input2"].to(device)
-        concatenated = torch.cat((inputs, inputs2), dim=1)
-        fake_images = generator(sars, concatenated)
+        mask = images["mask"].to(device)
+        out = generator(inputs, inputs2, sars)
+        fake_images = out[0]
         outputs_fake = discriminator(fake_images.detach()).view(-1, 1)
         loss_D_fake = criterion_GAN(outputs_fake, fake_labels)
 
@@ -151,16 +159,25 @@ for epoch in range(num_epochs):
         optimizer_G.zero_grad()
 
         # 更新G，使D将生成的图像分类为真
+        out = generator(inputs, inputs2, sars)
+        fake_images, out_s2, attn = out[0], out[1], out[2]
         outputs = discriminator(fake_images).view(-1, 1)
         loss_G_GAN = criterion_GAN(outputs, real_labels)
         # L1损失，确保像素级相似度
-        loss_G_L1 = criterion_L1(fake_images, real_images)
+        loss_RGB = criterion_L1(fake_images, real_images)
+        loss_S2 = criterion_L1(out_s2, targets)
+        loss_M = criterion_L2(attn[:, 0, :, :], mask)
+        loss_G = loss_RGB * 100 + loss_S2 * 10 + loss_M
+        # loss_G_L1 = criterion_L1(fake_images, real_images)
         # 总损失为GAN损失和L1损失的组合
-        loss_G = loss_G_GAN + lambda_L1 * loss_G_L1
+        loss_G = loss_G_GAN + loss_G
         loss_G.backward()
         optimizer_G.step()
 
         running_loss += loss_G.item()
+        running_loss_rgb += loss_RGB.item() * 100
+        running_loss_M += loss_M.item() * 5
+        running_loss_s2 += loss_S2.item() * 10
         running_loss_dis += loss_D.item()
         targets_rgb = real_images
         outputs_np = fake_images.cpu().detach().numpy()
@@ -191,6 +208,10 @@ for epoch in range(num_epochs):
                   f"ORI_SSIM: {original_ssim / log_step:.4f}, "
                   f"ORI_SSIM2: {original_ssim2 / log_step:.4f}")
             running_loss = 0.0
+            running_loss_dis = 0.0
+            running_loss_rgb = 0.0
+            running_loss_s2 = 0.0
+            running_loss_M = 0.0
             running_ssim = 0.0
             running_psnr = 0.0
             original_ssim = 0.0
@@ -222,8 +243,8 @@ for epoch in range(num_epochs):
             elif opts.use_sar is not None and opts.use_input2 is not None:
                 sars = images["sar"].to(device)
                 inputs2 = images["input2"].to(device)
-                concatenated = torch.cat((inputs, inputs2), dim=1)
-                outputs = generator(sars, concatenated)
+                out = generator(inputs, inputs2, sars)
+                outputs = out[0]
             else:
                 outputs = generator(inputs)
             if opts.use_rgb:

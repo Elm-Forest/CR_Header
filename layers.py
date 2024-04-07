@@ -9,6 +9,8 @@ class CBR(nn.Module):
         self.dropout = dropout
         if sample == 'down':
             self.c = nn.Conv2d(ch0, ch1, 4, 2, 1)
+        elif sample == 'stay':
+            self.c = nn.Conv2d(ch0, ch1, 3, 1, 1)
         else:
             self.c = nn.ConvTranspose2d(ch0, ch1, 4, 2, 1)
         if bn:

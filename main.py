@@ -15,6 +15,7 @@ from Charbonnier_Loss import L1_Charbonnier_loss
 from color_loss import ColorLoss
 from dataset import SEN12MSCR_Dataset, get_filelists
 from ssim_tools import ssim
+from tv_loss import TVLoss
 from uent_model import AttnCGAN_CR
 from unet_m import NestedUNet
 
@@ -68,9 +69,9 @@ else:
     output_channels = 13
 train_filelist, val_filelist, _ = get_filelists(csv_filepath)
 train_dataset = SEN12MSCR_Dataset(train_filelist, inputs_dir, targets_dir, sar_dir=opts.sar_dir,
-                                  inputs_dir2=inputs_dir2, use_attention=True, cloudy_dir=opts.cloudy_dir)
+                                  inputs_dir2=inputs_dir2, use_attention=False, cloudy_dir=opts.cloudy_dir)
 val_dataset = SEN12MSCR_Dataset(val_filelist, inputs_dir, targets_dir, sar_dir=opts.sar_dir, inputs_dir2=inputs_dir2,
-                                use_attention=True, cloudy_dir=opts.cloudy_dir)
+                                use_attention=False, cloudy_dir=opts.cloudy_dir)
 
 train_dataloader = DataLoader(train_dataset, batch_size=opts.batch_size, num_workers=opts.num_workers, shuffle=True)
 val_dataloader = DataLoader(val_dataset, batch_size=opts.batch_size, num_workers=opts.num_workers, shuffle=False)
@@ -106,6 +107,7 @@ optimizer = optim.Adam(meta_learner.parameters(), lr=opts.lr, weight_decay=opts.
 criterion_L1 = L1_Charbonnier_loss().to(device)
 criterion_Color = ColorLoss().to(device)
 criterion_L2 = nn.MSELoss().to(device)
+criterion_TV = TVLoss(weight=1.0).to(device)
 num_epochs = opts.epoch
 log_step = opts.log_freq
 
@@ -126,7 +128,7 @@ for epoch in range(num_epochs):
     running_loss = 0.0
     running_loss_rgb = 0.0
     running_loss_s2 = 0.0
-    running_loss_M = 0.0
+    running_loss_TV = 0.0
     running_ssim = 0.0
     original_ssim = 0.0
     original_ssim2 = 0.0
@@ -136,7 +138,6 @@ for epoch in range(num_epochs):
         optimizer.zero_grad()
         inputs = images["input"].to(device)
         targets = images["target"].to(device)
-        mask = images["mask"].to(device)
         inputs2 = torch.zeros(inputs.shape)
         if opts.use_sar is not None and opts.use_input2 is None:
             sars = images["sar"].to(device)
@@ -148,24 +149,24 @@ for epoch in range(num_epochs):
             outputs = meta_learner(inputs, inputs2, sars)
         else:
             outputs = meta_learner(inputs)
-        outputs, out_s2, attn = outputs[0], outputs[1], outputs[2]
+        outputs, out_s2 = outputs[0], outputs[1]
         if opts.use_rgb:
             targets_rgb = targets[:, 1:4, :, :]
         else:
             targets_rgb = targets
         loss_RGB = criterion_L1(outputs, targets_rgb)
         loss_S2 = criterion_L1(out_s2, targets)
-        loss_M = criterion_L2(attn[:, 0, :, :], mask)
+        loss_TV = criterion_TV(outputs)
         # loss_color = criterion_Color(outputs, targets_rgb)
         # loss = loss_l1 * 100 + loss_color * 0.01
-        loss = loss_RGB * 100 + loss_S2 * 10 + loss_M * 5
+        loss = loss_RGB * 100 + loss_S2 * 10 + loss_TV
         # print(loss_l1.item() * 100, loss_color.item() * 0.01)
         loss.backward()
         optimizer.step()
         running_loss += loss.item()
         running_loss_rgb += loss_RGB.item() * 100
-        running_loss_M += loss_M.item() * 5
         running_loss_s2 += loss_S2.item() * 10
+        running_loss_TV += loss_TV.item()
         outputs_np = outputs.cpu().detach().numpy()
         targets_np = targets_rgb.cpu().detach().numpy()
 
@@ -190,7 +191,7 @@ for epoch in range(num_epochs):
                   f"Loss: {running_loss / log_step:.4f}, "
                   f"Loss_RGB: {running_loss_rgb / log_step:.4f}, "
                   f"Loss_S2: {running_loss_s2 / log_step:.4f}, "
-                  f"Loss_M: {running_loss_M / log_step:.4f}, "
+                  f"Loss_TV: {running_loss_TV / log_step:.4f}, "
                   f"SSIM: {running_ssim / log_step:.4f}, "
                   f"PSNR: {running_psnr / log_step:.4f}, "
                   f"ORI_SSIM: {original_ssim / log_step:.4f}, "
@@ -198,7 +199,7 @@ for epoch in range(num_epochs):
             running_loss = 0.0
             running_loss_rgb = 0.0
             running_loss_s2 = 0.0
-            running_loss_M = 0.0
+            running_loss_TV = 0.0
             running_ssim = 0.0
             running_psnr = 0.0
             original_ssim = 0.0
@@ -233,7 +234,7 @@ for epoch in range(num_epochs):
                 outputs = meta_learner(inputs, inputs2, sars)
             else:
                 outputs = meta_learner(inputs)
-            outputs, out_s2, attn = outputs[0], outputs[1], outputs[2]
+            outputs, out_s2, = outputs[0], outputs[1]
             if opts.use_rgb:
                 targets_rgb = targets[:, 1:4, :, :]
             else:

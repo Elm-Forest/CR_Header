@@ -7,6 +7,9 @@ from MemoryNet import MemoryNet, MemoryNet2
 from SPANet import SPANet
 from ssim_tools import ssim
 from skimage.metrics import peak_signal_noise_ratio as psnr
+
+from uent_model import AttnCGAN_CR
+
 device = torch.device("cpu")
 
 
@@ -100,8 +103,9 @@ def build_data(input_path, target_path, cloudy_path, sar_path, input_path2):
 
 def load_model(path):
     # meta_learner = UNet_new(2, 26, 3, bilinear=True).to(device)
-    meta_learner = SPANet(2, 26, 3, 128)
-    meta_learner = MemoryNet2(in_c=26 + 2)
+    #　meta_learner = SPANet(2, 26, 3, 128)
+    # meta_learner = MemoryNet2(in_c=26 + 2)
+    meta_learner = AttnCGAN_CR(2, 13, 3, 2, bilinear=True).to(device)
     checkpoint = torch.load(path, map_location=torch.device('cpu'))
     try:
         meta_learner.load_state_dict(checkpoint, strict=True)
@@ -153,13 +157,13 @@ def get_rgb_preview(r, g, b, brighten_limit=None, sar_composite=False):
 
 
 if __name__ == '__main__':
-    name = 'ROIs1158_spring_44_p60.tif'  # 113p167 40p40
+    name = 'ROIs1158_spring_31_p248.tif'  # 113p167 40p40
     input_image = f'K:/dataset/ensemble/dsen2/{name}'
     input_image2 = f'K:/dataset/ensemble/clf/{name}'
     cloudy_image = f'K:\dataset\selected_data_folder\s2_cloudy\\{name}'
     target_image = f'K:\dataset\selected_data_folder\s2_cloudFree\\{name}'
     sar_image = f'K:\dataset\selected_data_folder\s1\\{name}'
-    meta_path = 'weights/memorynet (1).pth'
+    meta_path = 'checkpoint/checkpoint_3.pth'
     images = build_data(input_image, target_image, cloudy_image, sar_image, input_image2)
     inputs = images["input"]
     inputs2 = images["input2"]
@@ -170,10 +174,12 @@ if __name__ == '__main__':
     sar = images['sar']
     meta_learner = load_model(meta_path)
     print(inputs.unsqueeze(dim=0).shape)
-    concatenated = torch.cat((inputs.unsqueeze(dim=0), inputs2.unsqueeze(dim=0), sar.unsqueeze(dim=0)), dim=1)
-    inputs_rgb = (inputs.unsqueeze(dim=0)[:, 1:4, :, :] + inputs2.unsqueeze(dim=0)[:, 1:4, :, :]) / 2
-    outputs = meta_learner(concatenated, inputs_rgb)
-    outputs = outputs[0]
+    # concatenated = torch.cat((inputs.unsqueeze(dim=0), inputs2.unsqueeze(dim=0), sar.unsqueeze(dim=0)), dim=1)
+    # inputs_rgb = (inputs.unsqueeze(dim=0)[:, 1:4, :, :] + inputs2.unsqueeze(dim=0)[:, 1:4, :, :]) / 2
+    # outputs = meta_learner(concatenated, inputs_rgb)
+    # outputs = outputs[0]
+    out = meta_learner(inputs.unsqueeze(dim=0), inputs2.unsqueeze(dim=0), sar.unsqueeze(dim=0))
+    outputs = out[0]
     outputs_rgb = outputs.cpu().detach() * 10000
     outputs_rgb = get_normalized_data(outputs_rgb.squeeze(dim=0).numpy(), 2)
     print(ssim(inputs[1:4, :, :].unsqueeze(0), targets[1:4, :, :].unsqueeze(0), window_size=3), psnr(inputs[1:4, :, :].detach().numpy(), targets[1:4, :, :].detach().numpy()))
