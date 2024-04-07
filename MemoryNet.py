@@ -498,7 +498,7 @@ class MemoryNet2(nn.Module):
         # -------------- Stage 3---------------------
         # Compute Shallow Features
         x3 = self.shallow_feat3(x1)
-        y3 = self.shallow_feat_sar_3(y3)
+        y3 = self.shallow_feat_sar_3(y1)
         x3 = self.concat_xy(torch.cat((x3, y3), dim=1))
         # Concatenate SAM features of Stage 2 with shallow features of Stage 3
         x3_cat = self.concat23(torch.cat([x3, x3_samfeats], 1))
@@ -513,4 +513,3 @@ if __name__ == '__main__':
     s22 = torch.zeros((1, 13, 256, 256))
     s1 = torch.zeros((1, 2, 256, 256))
     meta_learner = MemoryNet2(in_c=26 + 2)
-    meta_learner
