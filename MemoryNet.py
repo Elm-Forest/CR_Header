@@ -412,23 +412,27 @@ class MemoryNet2(nn.Module):
         H = s2_img.size(2)
         W = s2_img.size(3)
         x1, x2, x3 = self.memory(s2_img)
-        y1, y2, y3 = self.memory_sar(s1_img)
+
         # Multi-Patch Hierarchy: Split Image into four non-overlapping patches
         # Two Patches for Stage 2
         x2top_img = x2[:, :, 0:int(H / 2), :]
         x2bot_img = x2[:, :, int(H / 2):H, :]
-        y2top_img = y2[:, :, 0:int(H / 2), :]
-        y2bot_img = y2[:, :, int(H / 2):H, :]
-
         x3top_img = x3[:, :, 0:int(H / 2), :]
         x3bot_img = x3[:, :, int(H / 2):H, :]
-        y3top_img = y3[:, :, 0:int(H / 2), :]
-        y3bot_img = y3[:, :, int(H / 2):H, :]
         # Four Patches for Stage 1
         x1ltop_img = x3top_img[:, :, :, 0:int(W / 2)]
         x1rtop_img = x3top_img[:, :, :, int(W / 2):W]
         x1lbot_img = x3bot_img[:, :, :, 0:int(W / 2)]
         x1rbot_img = x3bot_img[:, :, :, int(W / 2):W]
+
+        H = s1_img.size(2)
+        W = s1_img.size(3)
+        y1, y2, y3 = self.memory_sar(s1_img)
+        y2top_img = y2[:, :, 0:int(H / 2), :]
+        y2bot_img = y2[:, :, int(H / 2):H, :]
+        y3top_img = y3[:, :, 0:int(H / 2), :]
+        y3bot_img = y3[:, :, int(H / 2):H, :]
+
         y1ltop_img = y3top_img[:, :, :, 0:int(W / 2)]
         y1rtop_img = y3top_img[:, :, :, int(W / 2):W]
         y1lbot_img = y3bot_img[:, :, :, 0:int(W / 2)]
