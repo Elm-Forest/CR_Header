@@ -28,10 +28,7 @@ class MemoryUnit(nn.Module):
 
         self.avgpool = nn.AdaptiveAvgPool1d(1)
         self.reweight_layer_part = nn.Conv1d(self.part_num, self.part_num, 1)
-        if ptt_num == part_num:
-            self.reweight_layer_ins = self.reweight_layer_part
-        else:
-            self.reweight_layer_ins = nn.Conv1d(self.ptt_num, self.ptt_num, 1)
+        self.layer_ins = nn.Conv1d(self.ptt_num, self.ptt_num, 1)
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -107,7 +104,7 @@ class MemoryUnit(nn.Module):
         ### for semantic PTT
         # pdb.set_trace()
         reweight_ins = part_ins_att.view(self.num_cls, self.ptt_num, self.fea_dim)
-        temp = self.reweight_layer_ins(reweight_ins)
+        temp = self.layer_ins(reweight_ins)
         reweight_ins = (torch.sigmoid(temp) * reweight_ins).permute(0, 2, 1)
         sem_att = self.avgpool(reweight_ins).squeeze(-1)
         sem_att_weight = F.linear(output_ins, sem_att)
