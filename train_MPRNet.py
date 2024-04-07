@@ -110,7 +110,7 @@ if len(opts.gpu_ids) > 1:
     if num_gpus > 1:
         print('use {} gpus!'.format(num_gpus))
         meta_learner = nn.parallel.DistributedDataParallel(meta_learner, device_ids=[opts.local_rank],
-                                                           output_device=opts.local_rank, find_unused_parameters=False)
+                                                           output_device=opts.local_rank, find_unused_parameters=True)
         from torch.utils.data.distributed import DistributedSampler
 
         train_sampler = DistributedSampler(train_dataset)
@@ -150,7 +150,7 @@ for epoch in range(num_epochs):
         optimizer.zero_grad()
         inputs = images["input"].to(device)
         targets = images["target"].to(device)
-        inputs2 = torch.zeros(inputs.shape)
+        inputs2 = torch.zeros(inputs.shape).to(device)
         if opts.use_sar is not None and opts.use_input2 is None:
             sars = images["sar"].to(device)
             outputs = meta_learner(sars, inputs)
