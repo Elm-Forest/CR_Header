@@ -240,9 +240,8 @@ for epoch in range(num_epochs):
             elif opts.use_sar is not None and opts.use_input2 is not None:
                 sars = images["sar"].to(device)
                 inputs2 = images["input2"].to(device)
-                concatenated = torch.cat((inputs, inputs2, sars), dim=1)
-                inputs_rgb = (inputs[:, 1:4, :, :] + inputs2[:, 1:4, :, :]) / 2
-                outputs = meta_learner(concatenated, inputs_rgb)
+                concatenated = torch.cat((inputs, inputs2), dim=1)
+                outputs = meta_learner(concatenated, sars)
             else:
                 outputs = meta_learner(inputs)
             if opts.use_rgb:
