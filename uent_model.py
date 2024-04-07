@@ -70,11 +70,11 @@ class AttnCGAN_CR(nn.Module):
         self.cbam3 = CBAM(512)
         self.cbam4 = CBAM(1024)
         self.cbam5 = CBAM(2048 // factor)
-        self.res_input = nn.Sequential(
-            conv3x3(in_channels_s2, 128 // factor),
-            nn.BatchNorm2d(128 // factor),
-            nn.ReLU(True),
-        )
+        # self.res_input = nn.Sequential(
+        #     conv3x3(in_channels_s2, 128 // factor),
+        #     nn.BatchNorm2d(128 // factor),
+        #     nn.ReLU(True),
+        # )
         self.out_s2 = (OutConv(128 // factor, in_channels_s2))
         self.relu = nn.ReLU(inplace=True)
         self.conv_in_reg = nn.Sequential(
@@ -88,13 +88,10 @@ class AttnCGAN_CR(nn.Module):
         self.res_block4 = Bottleneck(feature_c, feature_c)
         self.res_block5 = Bottleneck(feature_c, feature_c)
         self.outc = (OutConv(feature_c, out_channels))
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
 
     def forward(self, x11, x12, x2):
         x1 = torch.cat((x11, x12), dim=1)
-        x_mean = (x11 + x12) / 2
+        # x_mean = (x11 + x12) / 2
         x11, x12, x13, x14, x15 = self.encoder_s2(x1)
         x21, x22, x23, x24, x25 = self.encoder_sar(x2)
         x1 = torch.cat((x11, x21), dim=1)
@@ -112,7 +109,7 @@ class AttnCGAN_CR(nn.Module):
         x = self.up3(x, x2)
         x = self.up4(x, x1)
         s2 = self.out_s2(x)
-        x = self.relu(self.res_input(x_mean) + x)
+        # x = self.relu(self.res_input(x_mean) + x)
         out = self.conv_in_reg(x)
         out = F.relu(self.res_block1(out) + out)
         out = F.relu(self.res_block2(out) + out)
