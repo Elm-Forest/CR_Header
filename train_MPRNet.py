@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 
 from Charbonnier_Loss import EdgeLoss, L1_Charbonnier_loss
-from MemoryNet import MemoryNet
+from MemoryNet import MemoryNet2
 from dataset import SEN12MSCR_Dataset, get_filelists
 from ssim_tools import ssim
 from uent_model import AttnCGAN_CR
@@ -91,7 +91,7 @@ if opts.use_sar and opts.use_input2 is False:
 elif opts.use_sar and opts.use_input2:
     print('create unet_new inc=26')
     #  meta_learner = UNet_new(2, 26, 3, bilinear=True).to(device)
-    meta_learner = MemoryNet(in_c=26 + 2).to(device)
+    meta_learner = MemoryNet2(in_c=26, in_s1=2).to(device)
 else:
     meta_learner = NestedUNet(in_channels=opts.input_channels, out_channels=output_channels).to(device)
 
@@ -157,9 +157,8 @@ for epoch in range(num_epochs):
         elif opts.use_sar is not None and opts.use_input2 is not None:
             sars = images["sar"].to(device)
             inputs2 = images["input2"].to(device)
-            concatenated = torch.cat((inputs, inputs2, sars), dim=1)
-            inputs_rgb = (inputs[:, 1:4, :, :] + inputs2[:, 1:4, :, :]) / 2
-            outputs = meta_learner(concatenated, inputs_rgb)
+            concatenated = torch.cat((inputs, inputs2), dim=1)
+            outputs = meta_learner(concatenated, sars)
         else:
             outputs = meta_learner(inputs)
         if opts.use_rgb:

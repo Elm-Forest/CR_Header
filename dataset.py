@@ -141,7 +141,7 @@ class SEN12MSCR_Dataset(Dataset):
 
     def get_attention_mask(self, cloudy=None):
         mask = get_cloud_cloudshadow_mask(cloudy, 0.2)
-        mask[mask == -1] = 0
+        mask[mask == -1] = 0.5
         return mask
 
     def get_attention_map(self, input1, targets, input2=None):
