@@ -117,6 +117,7 @@ class AttnCGAN_CR(nn.Module):
         out = F.relu(self.res_block4(out) + out)
         out = F.relu(self.res_block5(out) + out)
         out = self.outc(out)
+        out = F.tanh(out)
         return out, s2
 
 
