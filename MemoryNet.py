@@ -373,7 +373,7 @@ class MemoryNet2(nn.Module):
                  reduction=4, bias=False):
         super(MemoryNet2, self).__init__()
         self.memory = memory.MemModule(ptt_num=2, num_cls=10, part_num=5, fea_dim=in_c)
-        self.memory_sar = memory.MemModule(ptt_num=2, num_cls=10, part_num=5, fea_dim=in_s1)
+        self.memory_sar = memory.MemModule(ptt_num=5, num_cls=10, part_num=5, fea_dim=in_s1)
         act = nn.PReLU()
         self.shallow_feat1 = nn.Sequential(conv(in_c, n_feat, kernel_size, bias=bias),
                                            CAB(n_feat, kernel_size, reduction, bias=bias, act=act))

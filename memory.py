@@ -28,7 +28,7 @@ class MemoryUnit(nn.Module):
 
         self.avgpool = nn.AdaptiveAvgPool1d(1)
         self.reweight_layer_part = nn.Conv1d(self.part_num, self.part_num, 1)
-        self.reweight_layer_ins = self.reweight_layer_part
+        self.reweight_layer_ins = nn.Conv1d(self.ptt_num, self.ptt_num, 1)
 
         self.reset_parameters()
 
