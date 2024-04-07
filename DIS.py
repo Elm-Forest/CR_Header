@@ -49,6 +49,6 @@ class Discriminator(nn.Module):
 
 if __name__ == '__main__':
     torch.save(Discriminator(3, 3, 0).state_dict(), './model_test/d2.pth')
-    real_labels_smooth = torch.full((4, 1), 0.9)
-    fake_labels_smooth = torch.full((4, 1), 0.1)
-    fake_labels_smooth = torch.full((4, 1), 0.1)
+    # real_labels_smooth = torch.full((4, 1), 0.9)
+    # fake_labels_smooth = torch.full((4, 1), 0.1)
+    # fake_labels_smooth = torch.full((4, 1), 0.1)

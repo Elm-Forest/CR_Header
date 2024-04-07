@@ -1,5 +1,7 @@
 """ Full assembly of the parts to form the complete network """
-from SPANet import SAM, Bottleneck, conv3x3
+from collections import OrderedDict
+
+from SPANet import conv3x3
 from cbam import CBAM
 from unet_parts import *
 
@@ -31,8 +33,29 @@ class Encoder(nn.Module):
         return x1, x2, x3, x4, x5
 
 
+class Bottleneck(nn.Module):
+    def __init__(self, in_channels, out_channels, ):
+        super(Bottleneck, self).__init__()
+        m = OrderedDict()
+        m['conv1'] = nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=False)
+        m['bc1'] = nn.BatchNorm2d(out_channels)
+        m['relu1'] = nn.ReLU(True)
+        m['conv2'] = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=2, bias=False, dilation=2)
+        m['bc2'] = nn.BatchNorm2d(out_channels)
+        m['relu2'] = nn.ReLU(True)
+        m['conv3'] = nn.Conv2d(out_channels, out_channels, kernel_size=1, bias=False)
+        m['cbam'] = CBAM(out_channels)
+        self.group1 = nn.Sequential(m)
+        self.relu = nn.Sequential(nn.ReLU(True))
+
+    def forward(self, x):
+        out = self.group1(x)
+        return out
+
+
 class AttnCGAN_CR(nn.Module):
-    def __init__(self, in_channels_sar, in_channels_s2, out_channels, ensemble_num=2, bilinear=True, feature_c=32):
+    def __init__(self, in_channels_sar=2, in_channels_s2=13, out_channels=3, ensemble_num=2, bilinear=True,
+                 feature_c=32):
         super(AttnCGAN_CR, self).__init__()
         self.bilinear = bilinear
         self.encoder_sar = Encoder(in_channels_sar, bilinear)  # official Unet Encoder
@@ -47,10 +70,15 @@ class AttnCGAN_CR(nn.Module):
         self.cbam3 = CBAM(512)
         self.cbam4 = CBAM(1024)
         self.cbam5 = CBAM(2048 // factor)
+        self.res_input = nn.Sequential(
+            conv3x3(in_channels_s2, 128 // factor),
+            nn.BatchNorm2d(128 // factor),
+            nn.ReLU(True),
+        )
         self.out_s2 = (OutConv(128 // factor, in_channels_s2))
         self.relu = nn.ReLU(inplace=True)
         self.conv_in_reg = nn.Sequential(
-            conv3x3(in_channels_s2, feature_c),
+            conv3x3(128 // factor, feature_c),
             nn.BatchNorm2d(feature_c, affine=True),
             nn.ReLU(True),
         )
@@ -59,12 +87,10 @@ class AttnCGAN_CR(nn.Module):
         self.res_block3 = Bottleneck(feature_c, feature_c)
         self.res_block4 = Bottleneck(feature_c, feature_c)
         self.res_block5 = Bottleneck(feature_c, feature_c)
-        # self.res_block6 = Bottleneck(feature_c, feature_c)
-        # self.res_block7 = Bottleneck(feature_c, feature_c)
-        # self.res_block8 = Bottleneck(feature_c, feature_c)
-        # self.res_block9 = Bottleneck(feature_c, feature_c)
-        # self.res_block10 = Bottleneck(feature_c, feature_c)
         self.outc = (OutConv(feature_c, out_channels))
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
 
     def forward(self, x11, x12, x2):
         x1 = torch.cat((x11, x12), dim=1)
@@ -85,20 +111,16 @@ class AttnCGAN_CR(nn.Module):
         x = self.up2(x, x3)
         x = self.up3(x, x2)
         x = self.up4(x, x1)
-        x = self.relu(self.out_s2(x) + x_mean)
+        s2 = self.out_s2(x)
+        x = self.relu(self.res_input(x_mean) + x)
         out = self.conv_in_reg(x)
         out = F.relu(self.res_block1(out) + out)
         out = F.relu(self.res_block2(out) + out)
         out = F.relu(self.res_block3(out) + out)
         out = F.relu(self.res_block4(out) + out)
         out = F.relu(self.res_block5(out) + out)
-        # out = F.relu(self.res_block6(out) + out)
-        # out = F.relu(self.res_block7(out) + out)
-        # out = F.relu(self.res_block8(out) + out)
-        # out = F.relu(self.res_block9(out) + out)
-        # out = F.relu(self.res_block10(out) + out)
         out = self.outc(out)
-        return out, x
+        return out, s2
 
 
 class UNet(nn.Module):
