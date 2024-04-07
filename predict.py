@@ -2,13 +2,10 @@ import numpy as np
 import rasterio
 import torch
 from matplotlib import pyplot as plt
-
-from MemoryNet import MemoryNet, MemoryNet2
-from SPANet import SPANet
-from ssim_tools import ssim
 from skimage.metrics import peak_signal_noise_ratio as psnr
 
-from uent_model import AttnCGAN_CR
+from MemoryNet import MemoryNet2
+from ssim_tools import ssim
 
 device = torch.device("cpu")
 
@@ -103,8 +100,8 @@ def build_data(input_path, target_path, cloudy_path, sar_path, input_path2):
 
 def load_model(path):
     # meta_learner = UNet_new(2, 26, 3, bilinear=True).to(device)
-    #　meta_learner = SPANet(2, 26, 3, 128)
-    meta_learner = MemoryNet(in_c=26 + 2)
+    # 　meta_learner = SPANet(2, 26, 3, 128)
+    meta_learner = MemoryNet2(in_c=26, in_s1=2)
     # meta_learner = AttnCGAN_CR(2, 13, 3, 2, bilinear=True).to(device)
     checkpoint = torch.load(path, map_location=torch.device('cpu'))
     try:
@@ -174,18 +171,22 @@ if __name__ == '__main__':
     sar = images['sar']
     meta_learner = load_model(meta_path)
     print(inputs.unsqueeze(dim=0).shape)
-    concatenated = torch.cat((inputs.unsqueeze(dim=0), inputs2.unsqueeze(dim=0), sar.unsqueeze(dim=0)), dim=1)
+    concatenated = torch.cat((inputs.unsqueeze(dim=0), inputs2.unsqueeze(dim=0)), dim=1)
     inputs_rgb = (inputs.unsqueeze(dim=0)[:, 1:4, :, :] + inputs2.unsqueeze(dim=0)[:, 1:4, :, :]) / 2
-    outputs = meta_learner(concatenated, inputs_rgb)
+    outputs = meta_learner(concatenated, sar.unsqueeze(dim=0))
     outputs = outputs[0]
-    #　out = meta_learner(inputs.unsqueeze(dim=0), inputs2.unsqueeze(dim=0), sar.unsqueeze(dim=0))
+    # 　out = meta_learner(inputs.unsqueeze(dim=0), inputs2.unsqueeze(dim=0), sar.unsqueeze(dim=0))
     # outputs = out[0]
     outputs_rgb = outputs.cpu().detach() * 10000
     outputs_rgb = get_normalized_data(outputs_rgb.squeeze(dim=0).numpy(), 2)
-    print(ssim(inputs[1:4, :, :].unsqueeze(0), targets[1:4, :, :].unsqueeze(0), window_size=3), psnr(inputs[1:4, :, :].detach().numpy(), targets[1:4, :, :].detach().numpy()))
-    print(ssim(inputs2[1:4, :, :].unsqueeze(0), targets[1:4, :, :].unsqueeze(0), window_size=3), psnr(inputs2[1:4, :, :].detach().numpy(), targets[1:4, :, :].detach().numpy()))
-    print(ssim(avg[1:4, :, :].unsqueeze(0), targets[1:4, :, :].unsqueeze(0), window_size=3), psnr(avg[1:4, :, :].detach().numpy(), targets[1:4, :, :].detach().numpy()))
-    print(ssim(torch.from_numpy(outputs_rgb).unsqueeze(0), targets[1:4, :, :].unsqueeze(0), window_size=3), psnr(outputs_rgb, targets[1:4, :, :].detach().numpy()))
+    print(ssim(inputs[1:4, :, :].unsqueeze(0), targets[1:4, :, :].unsqueeze(0), window_size=3),
+          psnr(inputs[1:4, :, :].detach().numpy(), targets[1:4, :, :].detach().numpy()))
+    print(ssim(inputs2[1:4, :, :].unsqueeze(0), targets[1:4, :, :].unsqueeze(0), window_size=3),
+          psnr(inputs2[1:4, :, :].detach().numpy(), targets[1:4, :, :].detach().numpy()))
+    print(ssim(avg[1:4, :, :].unsqueeze(0), targets[1:4, :, :].unsqueeze(0), window_size=3),
+          psnr(avg[1:4, :, :].detach().numpy(), targets[1:4, :, :].detach().numpy()))
+    print(ssim(torch.from_numpy(outputs_rgb).unsqueeze(0), targets[1:4, :, :].unsqueeze(0), window_size=3),
+          psnr(outputs_rgb, targets[1:4, :, :].detach().numpy()))
     inputs_R_channel = inputs[3, :, :]
     inputs_G_channel = inputs[2, :, :]
     inputs_B_channel = inputs[1, :, :]

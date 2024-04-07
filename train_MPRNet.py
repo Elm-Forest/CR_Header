@@ -11,6 +11,7 @@ from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
+import tv_loss
 from Charbonnier_Loss import EdgeLoss, L1_Charbonnier_loss
 from MemoryNet import MemoryNet2
 from dataset import SEN12MSCR_Dataset, get_filelists
@@ -102,7 +103,16 @@ if opts.load_weights and opts.weights_path is not None:
     try:
         meta_learner.load_state_dict(weights['state_dict'], strict=False)
     except:
-        pass
+        new_state_dict = {k.replace('module.', ''): v for k, v in weights.items()}
+        # 加载新的状态字典到模型
+        try:
+            meta_learner.load_state_dict(new_state_dict, strict=False)
+        except:
+            try:
+                meta_learner.load_state_dict(new_state_dict['state_dict'], strict=False)
+            except:
+                print('pass loading weights')
+                pass
 train_sampler = None
 if len(opts.gpu_ids) > 1:
     print("Parallel training!")
@@ -122,6 +132,7 @@ if len(opts.gpu_ids) > 1:
 optimizer = optim.Adam(meta_learner.parameters(), lr=opts.lr, weight_decay=opts.weight_decay)
 criterion_char = L1_Charbonnier_loss().to(device)
 criterion_edge = EdgeLoss().to(device)
+criterion_TV = tv_loss.TVLoss().to(device)
 num_epochs = opts.epoch
 log_step = opts.log_freq
 
@@ -140,6 +151,8 @@ print('Start Training!')
 meta_learner.train()
 for epoch in range(num_epochs):
     running_loss = 0.0
+    running_loss_rgb = 0.0
+    running_loss_TV = 0.0
     running_ssim = 0.0
     original_ssim = 0.0
     original_ssim2 = 0.0
@@ -167,12 +180,16 @@ for epoch in range(num_epochs):
             targets_rgb = targets
         loss_char = torch.sum(
             torch.stack([criterion_char(outputs[j], targets[:, 1:4, :, :]) for j in range(len(outputs))]))
+        loss_l1 = criterion_char(outputs[0], targets[:, 1:4, :, :])
+        loss_tv = criterion_TV(outputs[0])
         loss_edge = torch.sum(
             torch.stack([criterion_edge(outputs[j], targets[:, 1:4, :, :]) for j in range(len(outputs))]))
-        loss = loss_char + (0.05 * loss_edge)
+        loss = loss_char * 0.3 + (0.05 * loss_edge) + loss_l1 + loss_tv * 0.02
         loss.backward()
         optimizer.step()
         running_loss += loss.item()
+        running_loss_TV += loss_tv.item() * 0.02
+        running_loss_rgb += loss_l1.item()
         outputs = outputs[0]
         outputs_np = outputs.cpu().detach().numpy()
         targets_np = targets_rgb.cpu().detach().numpy()
@@ -198,6 +215,8 @@ for epoch in range(num_epochs):
                 if opts.local_rank == 0:
                     print(f"Epoch [{epoch + 1}/{num_epochs}], Step [{i + 1}/{len(train_dataloader)}], "
                           f"Loss: {running_loss / log_step:.4f}, "
+                          f"Loss_TV: {running_loss_TV / log_step:.4f}, "
+                          f"Loss_RGB: {running_loss_rgb / log_step:.4f}, "
                           f"SSIM: {running_ssim / log_step:.4f}, "
                           f"PSNR: {running_psnr / log_step:.4f}, "
                           f"ORI_SSIM: {original_ssim / log_step:.4f}, "
@@ -205,11 +224,15 @@ for epoch in range(num_epochs):
             else:
                 print(f"Epoch [{epoch + 1}/{num_epochs}], Step [{i + 1}/{len(train_dataloader)}], "
                       f"Loss: {running_loss / log_step:.4f}, "
+                      f"Loss_TV: {running_loss_TV / log_step:.4f}, "
+                      f"Loss_RGB: {running_loss_rgb / log_step:.4f}, "
                       f"SSIM: {running_ssim / log_step:.4f}, "
                       f"PSNR: {running_psnr / log_step:.4f}, "
                       f"ORI_SSIM: {original_ssim / log_step:.4f}, "
                       f"ORI_SSIM2: {original_ssim2 / log_step:.4f}")
             running_loss = 0.0
+            running_loss_rgb = 0.0
+            running_loss_TV = 0.0
             running_ssim = 0.0
             running_psnr = 0.0
             original_ssim = 0.0
