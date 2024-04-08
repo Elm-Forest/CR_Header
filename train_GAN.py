@@ -319,7 +319,8 @@ for epoch in range(num_epochs):
         torch.save(generator.state_dict(), os.path.join(opts.checkpoint, f'checkpoint_gen_{epoch}.pth'))
         torch.save(discriminator.state_dict(), os.path.join(opts.checkpoint, f'checkpoint_dis_{epoch}.pth'))
 
-torch.save(generator.state_dict(), os.path.join(opts.save_model_dir, f'gen_{num_epochs}.pth'))
-torch.save(discriminator.state_dict(), os.path.join(opts.save_model_dir, f'dis_{num_epochs}.pth'))
-torch.save(generator, os.path.join(opts.save_model_dir, f'gen_{num_epochs}_instance.pth'))
-torch.save(discriminator, os.path.join(opts.save_model_dir, f'dis_{num_epochs}_instance.pth'))
+if num_epochs != 0:
+    torch.save(generator.state_dict(), os.path.join(opts.save_model_dir, f'gen_{num_epochs}.pth'))
+    torch.save(discriminator.state_dict(), os.path.join(opts.save_model_dir, f'dis_{num_epochs}.pth'))
+    torch.save(generator, os.path.join(opts.save_model_dir, f'gen_{num_epochs}_instance.pth'))
+    torch.save(discriminator, os.path.join(opts.save_model_dir, f'dis_{num_epochs}_instance.pth'))
