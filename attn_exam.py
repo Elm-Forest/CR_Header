@@ -134,7 +134,7 @@ plt.imshow(cloud_mask)
 plt.title('cloud_mask')
 plt.axis('off')  # 关闭坐标轴标号和刻度
 plt.show()
-cloud_mask[cloud_mask == -1] = 0
+cloud_mask[cloud_mask == -1] = 0.5
 plt.imshow(cloud_mask)
 plt.title('cloud_mask2')
 plt.axis('off')  # 关闭坐标轴标号和刻度

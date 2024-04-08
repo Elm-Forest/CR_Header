@@ -154,7 +154,7 @@ def get_rgb_preview(r, g, b, brighten_limit=None, sar_composite=False):
 
 
 if __name__ == '__main__':
-    name = 'ROIs1158_spring_6_p693.tif'  # 113p167 40p40
+    name = 'ROIs1158_spring_45_p386.tif'  # 113p167 40p40
     input_image = f'K:/dataset/ensemble/dsen2/{name}'
     input_image2 = f'K:/dataset/ensemble/clf/{name}'
     cloudy_image = f'K:\dataset\selected_data_folder\s2_cloudy\\{name}'

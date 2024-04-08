@@ -405,8 +405,9 @@ class MemoryNet2(nn.Module):
         self.concat_xy = conv(n_feat * 2, n_feat, kernel_size, bias=bias)
         self.tail1 = conv(in_c, out_c, kernel_size, bias=bias)
         self.tail2 = conv(in_c, out_c, kernel_size, bias=bias)
+        self.tail3 = conv(n_feat + scale_orsnetfeats, in_c, kernel_size=3, bias=True)
         self.relu = nn.ReLU(True)
-        self.tail = conv(n_feat + scale_orsnetfeats, out_c, kernel_size, bias=bias)
+        self.tail = conv(in_c, out_c, kernel_size, bias=bias)
 
     def forward(self, s2_img, s1_img):
         H = s2_img.size(2)
@@ -502,8 +503,8 @@ class MemoryNet2(nn.Module):
         x3 = self.concat_xy(torch.cat((x3, y3), dim=1))
         # Concatenate SAM features of Stage 2 with shallow features of Stage 3
         x3_cat = self.concat23(torch.cat([x3, x3_samfeats], 1))
-
         x3_cat = self.stage3_orsnet(x3_cat, feat2, res2)
+        x3_cat = self.relu(self.tail3(x3_cat) + s2_img)
         stage3_img = self.tail(x3_cat)
         return [stage3_img, stage2_img, stage1_img]
 

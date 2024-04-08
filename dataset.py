@@ -93,17 +93,23 @@ class SEN12MSCR_Dataset(Dataset):
             if self.crop_size is not None:
                 input_image2 = input_image2[..., y:y + self.crop_size, x:x + self.crop_size]
             result['input2'] = input_image2
-            if self.use_attention:
+            if self.cloudy_dir is not None:
                 cloudy_path = os.path.join(self.cloudy_dir, fileID)
                 cloudy_image = self.get_image(cloudy_path).astype('float32')
-                result['mask'] = torch.from_numpy(self.get_attention_mask(cloudy=cloudy_image).astype('float32'))
-                # result['attention'] = torch.from_numpy(
-                #     self.get_attention_map(input1=input_image_np, targets=target_image_np, input2=input_image2_np))
+                cloudy_image_n = self.get_normalized_data(cloudy_image, data_type=3)
+                result['cloudy'] = torch.from_numpy(cloudy_image_n)
+                if self.use_attention:
+                    result['mask'], result["t_mask"] = self.get_attention_mask(cloudy=cloudy_image)
+                    # result['attention'] = torch.from_numpy(
+                    #     self.get_attention_map(input1=input_image_np, targets=target_image_np, input2=input_image2_np))
         else:
-            if self.use_attention:
+            if self.cloudy_dir is not None:
                 cloudy_path = os.path.join(self.cloudy_dir, fileID)
                 cloudy_image = self.get_image(cloudy_path).astype('float32')
-                result['mask'] = torch.from_numpy(self.get_attention_mask(cloudy=cloudy_image).astype('float32'))
+                cloudy_image_n = self.get_normalized_data(cloudy_image, data_type=3)
+                result['cloudy'] = torch.from_numpy(cloudy_image_n)
+                if self.use_attention:
+                    result['mask'], result["t_mask"] = self.get_attention_mask(cloudy=cloudy_image)
                 # result['attention'] = torch.from_numpy(
                 #     self.get_attention_map(input1=input_image_np, targets=target_image_np))
         return result
@@ -141,8 +147,12 @@ class SEN12MSCR_Dataset(Dataset):
 
     def get_attention_mask(self, cloudy=None):
         mask = get_cloud_cloudshadow_mask(cloudy, 0.2)
+        t_mask = mask.copy()
         mask[mask == -1] = 0.5
-        return mask
+        t_mask[t_mask != 0] = -1
+        t_mask[t_mask == 0] = 1.0
+        t_mask[t_mask != 0] = 0.0
+        return torch.from_numpy(mask.astype('float32')), torch.from_numpy(t_mask.astype('float32'))
 
     def get_attention_map(self, input1, targets, input2=None):
         x = input1
