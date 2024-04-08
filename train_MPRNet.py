@@ -183,7 +183,7 @@ for epoch in range(num_epochs):
             targets_rgb = targets[:, 1:4, :, :]
         else:
             targets_rgb = targets
-        print(outputs[0].shape)
+        print(outputs[0].size(1))
         cloudy_attn = mask.repeat(1, 3, 1, 1)
         print(cloudy_attn.shape)
         loss_char = torch.sum(
