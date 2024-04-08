@@ -152,7 +152,8 @@ class SEN12MSCR_Dataset(Dataset):
         t_mask[t_mask != 0] = -1
         t_mask[t_mask == 0] = 1.0
         t_mask[t_mask != 0] = 0.0
-        return torch.from_numpy(mask.astype('float32')), torch.from_numpy(t_mask.astype('float32'))
+        return (torch.from_numpy(mask.astype('float32')).unsqueeze(0),
+                torch.from_numpy(t_mask.astype('float32')).unsqueeze(0))
 
     def get_attention_map(self, input1, targets, input2=None):
         x = input1
