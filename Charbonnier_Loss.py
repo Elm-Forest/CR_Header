@@ -1,6 +1,7 @@
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
-from torch import nn
+from torchvision.models import vgg19
 
 
 class L1_Charbonnier_loss(torch.nn.Module):
@@ -43,3 +44,43 @@ class EdgeLoss(nn.Module):
     def forward(self, x, y):
         loss = self.loss(self.laplacian_kernel(x), self.laplacian_kernel(y))
         return loss
+
+
+class PerceptualLoss(nn.Module):
+    def __init__(self):
+        super(PerceptualLoss, self).__init__()
+        vgg19_model = vgg19(pretrained=True).features[:36].eval()  # 使用VGG的前36层
+        for param in vgg19_model.parameters():
+            param.requires_grad = False  # 冻结VGG参数，避免更新它们
+        self.vgg19_model = vgg19_model
+        self.loss = nn.MSELoss()  # 使用MSE计算特征之间的差异
+
+    def forward(self, generated_image, target_image):
+        generated_features = self.vgg19_model(generated_image)
+        target_features = self.vgg19_model(target_image)
+        return self.loss(generated_features, target_features)
+
+
+class AdjustedPerceptualLoss(nn.Module):
+    def __init__(self):
+        super(AdjustedPerceptualLoss, self).__init__()
+        self.vgg19_model = vgg19(pretrained=True).features.eval()
+        self.selected_layers = [2, 7, 12, 21]  # 选择VGG的前几层
+        for param in self.vgg19_model.parameters():
+            param.requires_grad = False
+        self.loss = nn.L1Loss()
+
+    def forward(self, generated_image, target_image):
+        loss = 0.0
+        x = generated_image
+        y = target_image
+        for i, layer in enumerate(self.vgg19_model):
+            x = layer(x)
+            y = layer(y)
+            if i in self.selected_layers:
+                loss += self.loss(x, y)
+        return loss
+
+
+# 使用调整后的感知损失
+perceptual_loss_module = AdjustedPerceptualLoss()

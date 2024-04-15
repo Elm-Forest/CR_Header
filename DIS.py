@@ -17,9 +17,9 @@ class _Discriminator(nn.Module):
         self.c1 = CBR(64, 128, bn=True, sample='down', activation=nn.LeakyReLU(0.2, True), dropout=False)
         self.c11 = CBR(128, 128, bn=True, sample='stay', activation=nn.LeakyReLU(0.2, True), dropout=False)
         self.c2 = CBR(128, 256, bn=True, sample='down', activation=nn.LeakyReLU(0.2, True), dropout=False)
-        self.c22 = CBR(256, 256, bn=True, sample='stay', activation=nn.LeakyReLU(0.2, True), dropout=False)
+        # self.c22 = CBR(256, 256, bn=True, sample='stay', activation=nn.LeakyReLU(0.2, True), dropout=False)
         self.c3 = CBR(256, 512, bn=True, sample='down', activation=nn.LeakyReLU(0.2, True), dropout=False)
-        self.c33 = CBR(512, 512, bn=True, sample='stay', activation=nn.LeakyReLU(0.2, True), dropout=False)
+        # self.c33 = CBR(512, 512, bn=True, sample='stay', activation=nn.LeakyReLU(0.2, True), dropout=False)
         self.c4 = nn.Conv2d(512, 1, 3, 1, 1)
 
     def forward(self, x):
@@ -29,9 +29,9 @@ class _Discriminator(nn.Module):
         h = self.c1(h)
         h = F.relu(self.c11(h)+h)
         h = self.c2(h)
-        h = F.relu(self.c22(h) + h)
+        # h = F.relu(self.c22(h) + h)
         h = self.c3(h)
-        h = F.relu(self.c33(h) + h)
+        # h = F.relu(self.c33(h) + h)
         h = self.c4(h)
         return h
 

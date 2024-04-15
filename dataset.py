@@ -97,7 +97,11 @@ class SEN12MSCR_Dataset(Dataset):
                 cloudy_path = os.path.join(self.cloudy_dir, fileID)
                 cloudy_image = self.get_image(cloudy_path).astype('float32')
                 cloudy_image_n = self.get_normalized_data(cloudy_image, data_type=3)
+                if self.crop_size is not None:
+                    cloudy_image = cloudy_image[..., y:y + self.crop_size, x:x + self.crop_size]
+                    cloudy_image_n = cloudy_image_n[..., y:y + self.crop_size, x:x + self.crop_size]
                 result['cloudy'] = torch.from_numpy(cloudy_image_n)
+
                 if self.use_attention:
                     result['mask'], result["t_mask"] = self.get_attention_mask(cloudy=cloudy_image)
                     # result['attention'] = torch.from_numpy(
@@ -107,6 +111,9 @@ class SEN12MSCR_Dataset(Dataset):
                 cloudy_path = os.path.join(self.cloudy_dir, fileID)
                 cloudy_image = self.get_image(cloudy_path).astype('float32')
                 cloudy_image_n = self.get_normalized_data(cloudy_image, data_type=3)
+                if self.crop_size is not None:
+                    cloudy_image = cloudy_image[..., y:y + self.crop_size, x:x + self.crop_size]
+                    cloudy_image_n = cloudy_image_n[..., y:y + self.crop_size, x:x + self.crop_size]
                 result['cloudy'] = torch.from_numpy(cloudy_image_n)
                 if self.use_attention:
                     result['mask'], result["t_mask"] = self.get_attention_mask(cloudy=cloudy_image)

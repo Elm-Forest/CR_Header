@@ -21,17 +21,18 @@ parser.add_argument('--batch_size', type=int, default=1, help='batch size used f
 parser.add_argument('--inputs_dir', type=str, default='K:/dataset/ensemble/dsen2')
 parser.add_argument('--inputs_dir2', type=str, default='K:/dataset/ensemble/clf')
 parser.add_argument('--targets_dir', type=str, default='K:/dataset/selected_data_folder/s2_cloudFree')
+parser.add_argument('--cloudy_dir', type=str, default='K:/dataset/selected_data_folder/s2_cloudy')
 parser.add_argument('--sar_dir', type=str, default='K:/dataset/selected_data_folder/s1')
 parser.add_argument('--data_list_filepath', type=str,
                     default='E:/Development Program/Pycharm Program/ECANet/csv/datasetfilelist.csv')
 parser.add_argument('--optimizer', type=str, default='Adam', help='Adam')
 parser.add_argument('--lr_gen', type=float, default=1e-4, help='learning rate of optimizer')
-parser.add_argument('--lr_dis', type=float, default=3e-5, help='learning rate of optimizer')
+parser.add_argument('--lr_dis', type=float, default=1e-4, help='learning rate of optimizer')
 parser.add_argument('--lr_step', type=int, default=2, help='lr decay rate')
 parser.add_argument('--lr_start_epoch_decay', type=int, default=1, help='epoch to start lr decay')
 parser.add_argument('--epoch', type=int, default=10)
 parser.add_argument('--save_freq', type=int, default=1)
-parser.add_argument('--dis_backward_delay', type=int, default=2)
+parser.add_argument('--dis_backward_delay', type=int, default=1)
 parser.add_argument('--lambda_attn', type=float, default=5)
 parser.add_argument('--lambda_L1', type=float, default=100)
 parser.add_argument('--crop_size', type=int, default=None)
@@ -69,16 +70,16 @@ else:
     output_channels = 13
 train_filelist, val_filelist, _ = get_filelists(csv_filepath)
 train_dataset = SEN12MSCR_Dataset(train_filelist, inputs_dir, targets_dir, sar_dir=opts.sar_dir,
-                                  inputs_dir2=inputs_dir2, crop_size=opts.crop_size)
+                                  inputs_dir2=inputs_dir2, use_attention=True, cloudy_dir=opts.cloudy_dir)
 val_dataset = SEN12MSCR_Dataset(val_filelist, inputs_dir, targets_dir, sar_dir=opts.sar_dir, inputs_dir2=inputs_dir2,
-                                crop_size=opts.crop_size)
+                                use_attention=True, cloudy_dir=opts.cloudy_dir)
 
 train_dataloader = DataLoader(train_dataset, batch_size=opts.batch_size, num_workers=opts.num_workers, shuffle=True)
 val_dataloader = DataLoader(val_dataset, batch_size=opts.batch_size, num_workers=opts.num_workers, shuffle=False)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-generator = SPANet(2, 26, 3, 128).to(device)
+generator = SPANet(2, 13, 3, 64).to(device)
 discriminator = Discriminator(in_ch=3, out_ch=3 + 3 + 2, gpu_ids=0).to(device)
 generator_params = sum(p.numel() for p in generator.parameters())
 print(f"generator number of parameters: {generator_params}")
@@ -136,10 +137,11 @@ for epoch in range(num_epochs):
         sars = images["sar"].to(device)
         inputs = images["input"].to(device)
         inputs2 = images["input2"].to(device)
-        attention_map = images["attention"].to(device)
+        attention_map = images["mask"].to(device)
+        cloudy = images["cloudy"].to(device)
         batch_size = real_images.size(0)
-        concatenated = torch.cat((inputs, inputs2), dim=1)  # 假设这是另一种形式的输入
-        M, fake_images = generator(sars, concatenated)
+        # concatenated = torch.cat((inputs, inputs2, cloudy), dim=1)  # 假设这是另一种形式的输入
+        M, fake_images = generator(sars, cloudy)
         delay_steps += 1
         if delay_steps % opts.dis_backward_delay == 0:
             # 训练判别器D
@@ -242,6 +244,7 @@ for epoch in range(num_epochs):
         for i, images in enumerate(val_dataloader):
             inputs = images["input"].to(device)
             targets = images["target"].to(device)
+            cloudy = images["cloudy"].to(device)
             inputs2 = torch.zeros(inputs.shape)
             if opts.use_sar is not None and opts.use_input2 is None:
                 sars = images["sar"].to(device)
@@ -249,8 +252,8 @@ for epoch in range(num_epochs):
             elif opts.use_sar is not None and opts.use_input2 is not None:
                 sars = images["sar"].to(device)
                 inputs2 = images["input2"].to(device)
-                concatenated = torch.cat((inputs, inputs2), dim=1)
-                M, outputs = generator(sars, concatenated)
+                # concatenated = torch.cat((inputs, inputs2, cloudy), dim=1)
+                M, outputs = generator(sars, cloudy)
             else:
                 M, outputs = generator(inputs)
             if opts.use_rgb:
