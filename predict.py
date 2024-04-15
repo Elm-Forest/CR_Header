@@ -183,7 +183,7 @@ if __name__ == '__main__':
     cloudy_image = f'K:\dataset\selected_data_folder\s2_cloudy\\{name}'
     target_image = f'K:\dataset\selected_data_folder\s2_cloudFree\\{name}'
     sar_image = f'K:\dataset\selected_data_folder\s1\\{name}'
-    meta_path = 'checkpoint/checkpoint_gen_0.pth'
+    meta_path = 'checkpoint/checkpoint_gen_3.pth'
     images = build_data(input_image, target_image, cloudy_image, sar_image, input_image2)
     inputs = images["input"]
     inputs2 = images["input2"]
@@ -213,6 +213,11 @@ if __name__ == '__main__':
         concatenated = torch.cat((inputs, inputs2, cloudy), dim=0)  # 假设这是另一种形式的输入
         M, fake_images = meta_learner(sar.to(device).unsqueeze(dim=0), cloudy.to(device).unsqueeze(dim=0))
         M = M[:, 0, :, :].detach().cpu().squeeze(dim=0).squeeze(dim=0)
+        plt.figure(figsize=(6, 6))
+        plt.imshow(M.clip(0, 1))
+        plt.title('M')
+        plt.axis('off')  # 关闭坐标轴标号和刻度
+        plt.show()
         outputs = fake_images
     outputs_rgb = outputs.cpu().detach() * 10000
     outputs_rgb = get_normalized_data(outputs_rgb.squeeze(dim=0).numpy(), 2)
@@ -302,11 +307,6 @@ if __name__ == '__main__':
     plt.show()
     plt.figure(figsize=(6, 6))
     plt.imshow(mask.squeeze(dim=0))
-    plt.title('M')
-    plt.axis('off')  # 关闭坐标轴标号和刻度
-    plt.show()
-    plt.figure(figsize=(6, 6))
-    plt.imshow(M)
     plt.title('M')
     plt.axis('off')  # 关闭坐标轴标号和刻度
     plt.show()

@@ -27,12 +27,12 @@ parser.add_argument('--data_list_filepath', type=str,
                     default='E:/Development Program/Pycharm Program/ECANet/csv/datasetfilelist.csv')
 parser.add_argument('--optimizer', type=str, default='Adam', help='Adam')
 parser.add_argument('--lr_gen', type=float, default=1e-4, help='learning rate of optimizer')
-parser.add_argument('--lr_dis', type=float, default=1e-4, help='learning rate of optimizer')
+parser.add_argument('--lr_dis', type=float, default=1e-5, help='learning rate of optimizer')
 parser.add_argument('--lr_step', type=int, default=2, help='lr decay rate')
 parser.add_argument('--lr_start_epoch_decay', type=int, default=1, help='epoch to start lr decay')
 parser.add_argument('--epoch', type=int, default=10)
 parser.add_argument('--save_freq', type=int, default=1)
-parser.add_argument('--dis_backward_delay', type=int, default=1)
+parser.add_argument('--dis_backward_delay', type=int, default=3)
 parser.add_argument('--lambda_attn', type=float, default=5)
 parser.add_argument('--lambda_L1', type=float, default=100)
 parser.add_argument('--crop_size', type=int, default=None)
@@ -51,7 +51,7 @@ parser.add_argument('--use_sar', type=bool, default=True)
 parser.add_argument('--use_rgb', type=bool, default=True)
 parser.add_argument('--use_input2', type=bool, default=True)
 parser.add_argument('--load_weights', type=bool, default=False)
-parser.add_argument('--weights_path', type=str, default='weights/unet_carvana_scale0.5_epoch2.pth')
+parser.add_argument('--weights_path', type=str, default='checkpoint/checkpoint_2.pth')
 parser.add_argument('--weight_decay', type=float, default=0.0001)
 opts = parser.parse_args()
 
@@ -86,11 +86,17 @@ print(f"generator number of parameters: {generator_params}")
 discriminator_params = sum(p.numel() for p in discriminator.parameters())
 print(f"discriminator number of parameters: {discriminator_params}")
 criterion_L1 = nn.SmoothL1Loss().to(device)
-criterionSoftplus = nn.Softplus()
-criterionMSE = nn.MSELoss()
-criterion_GAN = nn.MSELoss()
+criterionSoftplus = nn.Softplus().to(device)
+criterionMSE = nn.MSELoss().to(device)
+criterion_GAN = nn.MSELoss().to(device)
 num_epochs = opts.epoch
 log_step = opts.log_freq
+if opts.load_weights and opts.weights_path is not None:
+    weights = torch.load(opts.weights_path)
+    try:
+        generator.load_state_dict(weights, strict=False)
+    except:
+        pass
 if len(opts.gpu_ids) > 1:
     print("Parallel training!")
     os.environ["CUDA_VISIBLE_DEVICES"] = opts.gpu_ids
