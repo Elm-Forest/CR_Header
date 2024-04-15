@@ -95,9 +95,13 @@ log_step = opts.log_freq
 if opts.load_weights and opts.weights_path is not None:
     weights = torch.load(opts.weights_path)
     try:
-        generator.load_state_dict(weights, strict=False)
+        generator.load_state_dict(weights, strict=True)
     except:
-        pass
+        new_state_dict = {k.replace('module.', ''): v for k, v in weights.items()}
+        try:
+            generator.load_state_dict(new_state_dict, strict=False)
+        except:
+            pass
 if len(opts.gpu_ids) > 1:
     print("Parallel training!")
     os.environ["CUDA_VISIBLE_DEVICES"] = opts.gpu_ids
