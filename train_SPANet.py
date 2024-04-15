@@ -127,6 +127,8 @@ def lr_lambda_dis(ep):
     return 1 - (1 - lr_decay) * (ep / (num_epochs - 1))
 
 
+print('using GAN: ', opts.is_gan)
+
 scheduler_G = LambdaLR(optimizer_G, lr_lambda_gen)
 scheduler_D = LambdaLR(optimizer_D, lr_lambda_dis)
 print('Start Training!')
@@ -166,7 +168,8 @@ for epoch in range(num_epochs):
                                / pred_real.size(0) / pred_real.size(2) / pred_real.size(3))
 
                 # 生成假图像并通过D
-                fake_ab = torch.cat((fake_images.detach(), inputs[:, 1:4, :, :], inputs2[:, 1:4, :, :], sars), 1)  # 使用生成的图像
+                fake_ab = torch.cat((fake_images.detach(), inputs[:, 1:4, :, :], inputs2[:, 1:4, :, :], sars),
+                                    1)  # 使用生成的图像
                 pred_fake = discriminator(fake_ab)
                 loss_D_fake = (torch.sum(criterionSoftplus(pred_fake))
                                / pred_fake.size(0) / pred_fake.size(2) / pred_fake.size(3))
