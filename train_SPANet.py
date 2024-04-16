@@ -202,6 +202,8 @@ for epoch in range(num_epochs):
                           / pred_fake.size(0) / pred_fake.size(2) / pred_fake.size(3))
             if M.dim() < 4:
                 M = M.unsqueeze(1)
+                print('add', M.shape)
+            print(M.shape)
             loss_G_att = criterion_focal(M, attention_map)
             # L1损失，确保像素级相似度
             loss_G_L1 = criterion_L1(fake_images, real_images)
