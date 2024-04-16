@@ -184,7 +184,7 @@ if __name__ == '__main__':
     cloudy_image = f'K:\dataset\selected_data_folder\s2_cloudy\\{name}'
     target_image = f'K:\dataset\selected_data_folder\s2_cloudFree\\{name}'
     sar_image = f'K:\dataset\selected_data_folder\s1\\{name}'
-    meta_path = 'checkpoint/checkpoint_25.pth'
+    meta_path = 'checkpoint/checkpoint_0.pth'
     images = build_data(input_image, target_image, cloudy_image, sar_image, input_image2)
     inputs = images["input"]
     inputs2 = images["input2"]

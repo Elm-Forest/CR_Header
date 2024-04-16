@@ -202,17 +202,18 @@ for epoch in range(num_epochs):
                           / pred_fake.size(0) / pred_fake.size(2) / pred_fake.size(3))
 
             loss_G_att = criterion_focal(M, attention_map)
+            loss_G_att_l1 = criterion_L1(M, attention_map)
             # L1损失，确保像素级相似度
             loss_G_L1 = criterion_L1(fake_images, real_images)
             # 总损失为GAN损失和L1损失的组合
-            loss_G = loss_G_GAN + lambda_L1 * loss_G_L1 + loss_G_att * lambda_attn
+            loss_G = loss_G_GAN + lambda_L1 * loss_G_L1 + loss_G_att * (lambda_attn // 2) + loss_G_att_l1 * (lambda_attn // 2)
             loss_G.backward()
             optimizer_G.step()
 
             running_loss += loss_G.item()
             running_loss_L1 += loss_G_L1.item()
             running_loss_GAN += loss_G_GAN.item()
-            running_loss_attn += loss_G_att.item()
+            running_loss_attn += loss_G_att.item() * (lambda_attn // 2) + loss_G_att_l1.item() * (lambda_attn // 2)
             targets_rgb = real_images
             outputs_np = fake_images.cpu().detach().numpy()
             targets_np = targets_rgb.cpu().detach().numpy()
@@ -255,15 +256,16 @@ for epoch in range(num_epochs):
                 running_loss_attn = 0.0
         else:
             loss_G_att = criterion_focal(M, attention_map)
+            loss_G_att_l1 = criterion_L1(M, attention_map)
             # L1损失，确保像素级相似度
             loss_G_L1 = criterion_L1(fake_images, real_images)
             # 总损失为GAN损失和L1损失的组合
-            loss_G = lambda_L1 * loss_G_L1 + loss_G_att * lambda_attn
+            loss_G = lambda_L1 * loss_G_L1 + loss_G_att * (lambda_attn // 2) + loss_G_att_l1 * (lambda_attn // 2)
             loss_G.backward()
             optimizer_G.step()
             running_loss += loss_G.item()
             running_loss_L1 += loss_G_L1.item()
-            running_loss_attn += loss_G_att.item()
+            running_loss_attn += loss_G_att.item() * (lambda_attn // 2) + loss_G_att_l1.item() * (lambda_attn // 2)
             targets_rgb = real_images
             outputs_np = fake_images.cpu().detach().numpy()
             targets_np = targets_rgb.cpu().detach().numpy()
