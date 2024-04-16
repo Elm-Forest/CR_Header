@@ -8,7 +8,6 @@ from skimage.metrics import peak_signal_noise_ratio as psnr
 from torch import nn
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
-from torchgeometry.losses import FocalLoss
 from torchvision import transforms
 
 from DIS import Discriminator
