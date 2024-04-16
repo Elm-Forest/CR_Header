@@ -176,14 +176,14 @@ def get_attention_mask(cloudy_path):
 
 
 if __name__ == '__main__':
-    model_name = 'spa_gan'  # unet / mprnet / spa_gan
+    model_name = 'unet'  # unet / mprnet / spa_gan
     name = 'ROIs1158_spring_15_p392.tif'  # 113p167 40p40
     input_image = f'K:/dataset/ensemble/dsen2/{name}'
     input_image2 = f'K:/dataset/ensemble/clf/{name}'
     cloudy_image = f'K:\dataset\selected_data_folder\s2_cloudy\\{name}'
     target_image = f'K:\dataset\selected_data_folder\s2_cloudFree\\{name}'
     sar_image = f'K:\dataset\selected_data_folder\s1\\{name}'
-    meta_path = 'checkpoint/checkpoint_gen_9.pth'
+    meta_path = 'checkpoint/checkpoint_0.pth'
     images = build_data(input_image, target_image, cloudy_image, sar_image, input_image2)
     inputs = images["input"]
     inputs2 = images["input2"]
@@ -208,6 +208,11 @@ if __name__ == '__main__':
         out = meta_learner(inputs.to(device).unsqueeze(dim=0), inputs2.to(device).unsqueeze(dim=0),
                            sar.to(device).unsqueeze(dim=0), cloudy.to(device).unsqueeze(dim=0))
         M = out[-1][:, 0, :, :].detach().cpu().squeeze(dim=0).squeeze(dim=0)
+        plt.figure(figsize=(6, 6))
+        plt.imshow(M.clip(0, 1))
+        plt.title('M')
+        plt.axis('off')  # 关闭坐标轴标号和刻度
+        plt.show()
         outputs = out[0]
     elif model_name == 'spa_gan':
         concatenated = torch.cat((inputs, inputs2, cloudy), dim=0)  # 假设这是另一种形式的输入

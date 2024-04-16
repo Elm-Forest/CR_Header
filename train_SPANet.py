@@ -82,7 +82,7 @@ train_dataloader = DataLoader(train_dataset, batch_size=opts.batch_size, num_wor
 val_dataloader = DataLoader(val_dataset, batch_size=opts.batch_size, num_workers=opts.num_workers, shuffle=False)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+device = torch.device("cpu")
 generator = SPANet(2, 13, 3, 128).to(device)
 discriminator = Discriminator(in_ch=3, out_ch=3 + 3 + 2, gpu_ids=0).to(device)
 generator_params = sum(p.numel() for p in generator.parameters())
@@ -106,7 +106,7 @@ if opts.load_weights and opts.weights_path is not None:
         except:
             pass
 if opts.load_weights2 and opts.weights_path2 is not None:
-    weights = torch.load(opts.weights_path2)
+    weights = torch.load(opts.weights_path2, map_location=torch.device('cpu'))
     try:
         generator.load_state_dict(weights, strict=True)
     except:
@@ -201,6 +201,8 @@ for epoch in range(num_epochs):
             # 更新G，使D将生成的图像分类为真
             loss_G_GAN = (torch.sum(criterionSoftplus(-pred_fake))
                           / pred_fake.size(0) / pred_fake.size(2) / pred_fake.size(3))
+            if M.dim() < 4:
+                M = M.unsqueeze(1)
             loss_G_att = criterion_focal(M, attention_map)
             # L1损失，确保像素级相似度
             loss_G_L1 = criterion_L1(fake_images, real_images)
