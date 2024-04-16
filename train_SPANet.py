@@ -200,10 +200,7 @@ for epoch in range(num_epochs):
             # 更新G，使D将生成的图像分类为真
             loss_G_GAN = (torch.sum(criterionSoftplus(-pred_fake))
                           / pred_fake.size(0) / pred_fake.size(2) / pred_fake.size(3))
-            if M.dim() < 4:
-                M = M.unsqueeze(1)
-                print('add', M.shape)
-            print(M.shape)
+
             loss_G_att = criterion_focal(M, attention_map)
             # L1损失，确保像素级相似度
             loss_G_L1 = criterion_L1(fake_images, real_images)
@@ -257,7 +254,7 @@ for epoch in range(num_epochs):
                 running_loss_L1 = 0.0
                 running_loss_attn = 0.0
         else:
-            loss_G_att = criterion_focal(M[:, 0, :, :], attention_map)
+            loss_G_att = criterion_focal(M, attention_map)
             # L1损失，确保像素级相似度
             loss_G_L1 = criterion_L1(fake_images, real_images)
             # 总损失为GAN损失和L1损失的组合
