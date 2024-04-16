@@ -8,11 +8,13 @@ from skimage.metrics import peak_signal_noise_ratio as psnr
 from torch import nn
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
+from torchgeometry.losses import FocalLoss
 from torchvision import transforms
 
 from DIS import Discriminator
 from SPANet import SPANet
 from dataset import SEN12MSCR_Dataset, get_filelists
+from focal_loss import Binary_FocalLoss
 from ssim_tools import ssim
 
 warnings.filterwarnings('ignore')
@@ -27,12 +29,12 @@ parser.add_argument('--data_list_filepath', type=str,
                     default='E:/Development Program/Pycharm Program/ECANet/csv/datasetfilelist.csv')
 parser.add_argument('--optimizer', type=str, default='Adam', help='Adam')
 parser.add_argument('--lr_gen', type=float, default=1e-4, help='learning rate of optimizer')
-parser.add_argument('--lr_dis', type=float, default=1e-5, help='learning rate of optimizer')
+parser.add_argument('--lr_dis', type=float, default=5e-5, help='learning rate of optimizer')
 parser.add_argument('--lr_step', type=int, default=2, help='lr decay rate')
 parser.add_argument('--lr_start_epoch_decay', type=int, default=1, help='epoch to start lr decay')
 parser.add_argument('--epoch', type=int, default=10)
 parser.add_argument('--save_freq', type=int, default=1)
-parser.add_argument('--dis_backward_delay', type=int, default=3)
+parser.add_argument('--dis_backward_delay', type=int, default=2)
 parser.add_argument('--lambda_attn', type=float, default=5)
 parser.add_argument('--lambda_L1', type=float, default=100)
 parser.add_argument('--is_gan', type=int, default=1)
@@ -51,8 +53,10 @@ parser.add_argument('--input_channels', type=int, default=13)
 parser.add_argument('--use_sar', type=bool, default=True)
 parser.add_argument('--use_rgb', type=bool, default=True)
 parser.add_argument('--use_input2', type=bool, default=True)
-parser.add_argument('--load_weights', type=bool, default=False)
-parser.add_argument('--weights_path', type=str, default='checkpoint/checkpoint_2.pth')
+parser.add_argument('--load_weights', type=bool, default=True)
+parser.add_argument('--weights_path', type=str, default='checkpoint/checkpoint_gen_9.pth')
+parser.add_argument('--load_weights2', type=bool, default=True)
+parser.add_argument('--weights_path2', type=str, default='checkpoint/checkpoint_dis_9.pth')
 parser.add_argument('--weight_decay', type=float, default=0.0001)
 opts = parser.parse_args()
 
@@ -80,7 +84,7 @@ val_dataloader = DataLoader(val_dataset, batch_size=opts.batch_size, num_workers
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-generator = SPANet(2, 13, 3, 64).to(device)
+generator = SPANet(2, 13, 3, 128).to(device)
 discriminator = Discriminator(in_ch=3, out_ch=3 + 3 + 2, gpu_ids=0).to(device)
 generator_params = sum(p.numel() for p in generator.parameters())
 print(f"generator number of parameters: {generator_params}")
@@ -88,12 +92,22 @@ discriminator_params = sum(p.numel() for p in discriminator.parameters())
 print(f"discriminator number of parameters: {discriminator_params}")
 criterion_L1 = nn.SmoothL1Loss().to(device)
 criterionSoftplus = nn.Softplus().to(device)
-criterionMSE = nn.MSELoss().to(device)
+criterion_focal = Binary_FocalLoss().to(device)
 criterion_GAN = nn.MSELoss().to(device)
 num_epochs = opts.epoch
 log_step = opts.log_freq
 if opts.load_weights and opts.weights_path is not None:
     weights = torch.load(opts.weights_path)
+    try:
+        generator.load_state_dict(weights, strict=True)
+    except:
+        new_state_dict = {k.replace('module.', ''): v for k, v in weights.items()}
+        try:
+            generator.load_state_dict(new_state_dict, strict=False)
+        except:
+            pass
+if opts.load_weights2 and opts.weights_path2 is not None:
+    weights = torch.load(opts.weights_path2)
     try:
         generator.load_state_dict(weights, strict=True)
     except:
@@ -188,7 +202,7 @@ for epoch in range(num_epochs):
             # 更新G，使D将生成的图像分类为真
             loss_G_GAN = (torch.sum(criterionSoftplus(-pred_fake))
                           / pred_fake.size(0) / pred_fake.size(2) / pred_fake.size(3))
-            loss_G_att = criterionMSE(M[:, 0, :, :], attention_map)
+            loss_G_att = criterion_focal(M, attention_map)
             # L1损失，确保像素级相似度
             loss_G_L1 = criterion_L1(fake_images, real_images)
             # 总损失为GAN损失和L1损失的组合
@@ -241,7 +255,7 @@ for epoch in range(num_epochs):
                 running_loss_L1 = 0.0
                 running_loss_attn = 0.0
         else:
-            loss_G_att = criterionMSE(M[:, 0, :, :], attention_map)
+            loss_G_att = criterion_focal(M[:, 0, :, :], attention_map)
             # L1损失，确保像素级相似度
             loss_G_L1 = criterion_L1(fake_images, real_images)
             # 总损失为GAN损失和L1损失的组合

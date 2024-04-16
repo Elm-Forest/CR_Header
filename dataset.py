@@ -31,8 +31,9 @@ def get_filelists(listpath):
 
 class SEN12MSCR_Dataset(Dataset):
     def __init__(self, filelist, inputs_dir, targets_dir, sar_dir=None, inputs_dir2=None, crop_size=None,
-                 use_attention=False, cloudy_dir=None):
+                 use_attention=False, cloudy_dir=None, use_shadow=True):
         self.filelist = filelist
+        self.use_shadow = use_shadow
         self.inputs_dir = inputs_dir
         self.inputs_dir2 = inputs_dir2
         self.sar_dir = sar_dir
@@ -155,7 +156,10 @@ class SEN12MSCR_Dataset(Dataset):
     def get_attention_mask(self, cloudy=None):
         mask = get_cloud_cloudshadow_mask(cloudy, 0.2)
         t_mask = mask.copy()
-        mask[mask == -1] = 0.5
+        if self.use_shadow:
+            mask[mask == -1] = 0.5
+        else:
+            mask[mask == -1] = 0.0
         t_mask[t_mask != 0] = -1
         t_mask[t_mask == 0] = 1.0
         t_mask[t_mask != 0] = 0.0
