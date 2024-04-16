@@ -82,7 +82,6 @@ train_dataloader = DataLoader(train_dataset, batch_size=opts.batch_size, num_wor
 val_dataloader = DataLoader(val_dataset, batch_size=opts.batch_size, num_workers=opts.num_workers, shuffle=False)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-device = torch.device("cpu")
 generator = SPANet(2, 13, 3, 128).to(device)
 discriminator = Discriminator(in_ch=3, out_ch=3 + 3 + 2, gpu_ids=0).to(device)
 generator_params = sum(p.numel() for p in generator.parameters())
