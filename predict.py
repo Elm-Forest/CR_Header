@@ -167,7 +167,8 @@ def get_attention_mask(cloudy_path):
     cloudy_image = get_image(cloudy_path).astype('float32')
     mask = get_cloud_cloudshadow_mask(cloudy_image, 0.2)
     t_mask = mask.copy()
-    mask[mask == -1] = 0.5
+    mask[mask == -1] = 0
+    mask[mask != 1] = 0.
     t_mask[t_mask != 0] = -1
     t_mask[t_mask == 0] = 1.0
     t_mask[t_mask != 0] = 0.0
@@ -183,7 +184,7 @@ if __name__ == '__main__':
     cloudy_image = f'K:\dataset\selected_data_folder\s2_cloudy\\{name}'
     target_image = f'K:\dataset\selected_data_folder\s2_cloudFree\\{name}'
     sar_image = f'K:\dataset\selected_data_folder\s1\\{name}'
-    meta_path = 'checkpoint/checkpoint_0.pth'
+    meta_path = 'checkpoint/checkpoint_25.pth'
     images = build_data(input_image, target_image, cloudy_image, sar_image, input_image2)
     inputs = images["input"]
     inputs2 = images["input2"]
@@ -208,8 +209,14 @@ if __name__ == '__main__':
         out = meta_learner(inputs.to(device).unsqueeze(dim=0), inputs2.to(device).unsqueeze(dim=0),
                            sar.to(device).unsqueeze(dim=0), cloudy.to(device).unsqueeze(dim=0))
         M = out[-1][:, 0, :, :].detach().cpu().squeeze(dim=0).squeeze(dim=0)
+        import torch.nn.functional as F
+
+        cloudy1 = F.relu(cloudy_ori[1, :, :] - cloudy_ori[1, :, :].mean())
+        cloudy1 = F.sigmoid(cloudy1) - 0.8
+        cloudy1 = F.relu(cloudy1)
+        cloudy1[cloudy1 == 0] = 0.1
         plt.figure(figsize=(6, 6))
-        plt.imshow(M.clip(0, 1))
+        plt.imshow(M)
         plt.title('M')
         plt.axis('off')  # 关闭坐标轴标号和刻度
         plt.show()

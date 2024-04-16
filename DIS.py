@@ -7,6 +7,7 @@ from layers import CBR
 from tools import weights_init
 import torch.nn.functional as F
 
+
 class _Discriminator(nn.Module):
     def __init__(self, in_ch, out_ch):
         super().__init__()
@@ -27,7 +28,7 @@ class _Discriminator(nn.Module):
         x_1 = x[:, self.in_ch:]
         h = torch.cat((self.c0_0(x_0), self.c0_1(x_1)), 1)
         h = self.c1(h)
-        h = F.relu(self.c11(h)+h)
+        h = F.relu(self.c11(h) + h)
         h = self.c2(h)
         # h = F.relu(self.c22(h) + h)
         h = self.c3(h)

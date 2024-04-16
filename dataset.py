@@ -31,7 +31,7 @@ def get_filelists(listpath):
 
 class SEN12MSCR_Dataset(Dataset):
     def __init__(self, filelist, inputs_dir, targets_dir, sar_dir=None, inputs_dir2=None, crop_size=None,
-                 use_attention=False, cloudy_dir=None, use_shadow=True):
+                 use_attention=False, cloudy_dir=None, use_shadow=False):
         self.filelist = filelist
         self.use_shadow = use_shadow
         self.inputs_dir = inputs_dir
@@ -104,7 +104,8 @@ class SEN12MSCR_Dataset(Dataset):
                 result['cloudy'] = torch.from_numpy(cloudy_image_n)
 
                 if self.use_attention:
-                    result['mask'], result["t_mask"] = self.get_attention_mask(cloudy=cloudy_image)
+                    res = self.get_attention_mask(cloudy=cloudy_image)
+                    result['mask'], result["t_mask"] = res['mask'], res["t_mask"]
                     # result['attention'] = torch.from_numpy(
                     #     self.get_attention_map(input1=input_image_np, targets=target_image_np, input2=input_image2_np))
         else:
@@ -117,7 +118,8 @@ class SEN12MSCR_Dataset(Dataset):
                     cloudy_image_n = cloudy_image_n[..., y:y + self.crop_size, x:x + self.crop_size]
                 result['cloudy'] = torch.from_numpy(cloudy_image_n)
                 if self.use_attention:
-                    result['mask'], result["t_mask"] = self.get_attention_mask(cloudy=cloudy_image)
+                    res = self.get_attention_mask(cloudy=cloudy_image)
+                    result['mask'], result["t_mask"] = res['mask'], res["t_mask"]
                 # result['attention'] = torch.from_numpy(
                 #     self.get_attention_map(input1=input_image_np, targets=target_image_np))
         return result
@@ -132,7 +134,8 @@ class SEN12MSCR_Dataset(Dataset):
     #     data_image = np.clip(data_image, self.clip_min, self.clip_max)
     #     data_image = data_image / self.scale
     #     return data_image
-    def get_normalized_data(self, data_image, data_type):
+    def get_normalized_data(self, data_image_ori, data_type):
+        data_image = data_image_ori.copy()
         # SAR
         if data_type == 1:
             for channel in range(len(data_image)):
@@ -159,12 +162,12 @@ class SEN12MSCR_Dataset(Dataset):
         if self.use_shadow:
             mask[mask == -1] = 0.5
         else:
-            mask[mask == -1] = 0.0
+            mask[mask == -1] = 0
         t_mask[t_mask != 0] = -1
         t_mask[t_mask == 0] = 1.0
         t_mask[t_mask != 0] = 0.0
-        return (torch.from_numpy(mask.astype('float32')).unsqueeze(0),
-                torch.from_numpy(t_mask.astype('float32')).unsqueeze(0))
+        return {'mask': torch.from_numpy(mask.astype('float32')).unsqueeze(0),
+                't_mask': torch.from_numpy(t_mask.astype('float32')).unsqueeze(0)}
 
     def get_attention_map(self, input1, targets, input2=None):
         x = input1
