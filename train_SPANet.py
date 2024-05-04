@@ -31,7 +31,7 @@ parser.add_argument('--lr_gen', type=float, default=1e-4, help='learning rate of
 parser.add_argument('--lr_dis', type=float, default=5e-5, help='learning rate of optimizer')
 parser.add_argument('--lr_step', type=int, default=2, help='lr decay rate')
 parser.add_argument('--lr_start_epoch_decay', type=int, default=1, help='epoch to start lr decay')
-parser.add_argument('--epoch', type=int, default=10)
+parser.add_argument('--epoch', type=int, default=20)
 parser.add_argument('--save_freq', type=int, default=1)
 parser.add_argument('--dis_backward_delay', type=int, default=2)
 parser.add_argument('--lambda_attn', type=float, default=5)
