@@ -81,6 +81,3 @@ class AdjustedPerceptualLoss(nn.Module):
                 loss += self.loss(x, y)
         return loss
 
-
-# 使用调整后的感知损失
-perceptual_loss_module = AdjustedPerceptualLoss()

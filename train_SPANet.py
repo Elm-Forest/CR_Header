@@ -25,7 +25,7 @@ parser.add_argument('--targets_dir', type=str, default='K:/dataset/selected_data
 parser.add_argument('--cloudy_dir', type=str, default='K:/dataset/selected_data_folder/s2_cloudy')
 parser.add_argument('--sar_dir', type=str, default='K:/dataset/selected_data_folder/s1')
 parser.add_argument('--data_list_filepath', type=str,
-                    default='E:/Development Program/Pycharm Program/ECANet/csv/datasetfilelist.csv')
+                    default='./csv/datasetfilelist.csv')
 parser.add_argument('--optimizer', type=str, default='Adam', help='Adam')
 parser.add_argument('--lr_gen', type=float, default=1e-4, help='learning rate of optimizer')
 parser.add_argument('--lr_dis', type=float, default=5e-5, help='learning rate of optimizer')
@@ -53,9 +53,9 @@ parser.add_argument('--use_sar', type=bool, default=True)
 parser.add_argument('--use_rgb', type=bool, default=True)
 parser.add_argument('--use_input2', type=bool, default=True)
 parser.add_argument('--load_weights', type=bool, default=True)
-parser.add_argument('--weights_path', type=str, default='checkpoint/checkpoint_gen_9.pth')
+parser.add_argument('--weights_path', type=str, default='checkpoint/checkpoint_gen_2.pth')
 parser.add_argument('--load_weights2', type=bool, default=True)
-parser.add_argument('--weights_path2', type=str, default='checkpoint/checkpoint_dis_9.pth')
+parser.add_argument('--weights_path2', type=str, default='checkpoint/checkpoint_dis_2.pth')
 parser.add_argument('--weight_decay', type=float, default=0.0001)
 opts = parser.parse_args()
 
@@ -201,19 +201,18 @@ for epoch in range(num_epochs):
             loss_G_GAN = (torch.sum(criterionSoftplus(-pred_fake))
                           / pred_fake.size(0) / pred_fake.size(2) / pred_fake.size(3))
 
-            loss_G_att = criterion_focal(M, attention_map)
             loss_G_att_l1 = criterion_L1(M, attention_map)
             # L1损失，确保像素级相似度
             loss_G_L1 = criterion_L1(fake_images, real_images)
             # 总损失为GAN损失和L1损失的组合
-            loss_G = loss_G_GAN + lambda_L1 * loss_G_L1 + loss_G_att * (lambda_attn // 2) + loss_G_att_l1 * (lambda_attn // 2)
+            loss_G = loss_G_GAN + lambda_L1 * loss_G_L1 + loss_G_att_l1 * lambda_attn
             loss_G.backward()
             optimizer_G.step()
 
             running_loss += loss_G.item()
             running_loss_L1 += loss_G_L1.item()
             running_loss_GAN += loss_G_GAN.item()
-            running_loss_attn += loss_G_att.item() * (lambda_attn // 2) + loss_G_att_l1.item() * (lambda_attn // 2)
+            running_loss_attn += loss_G_att_l1.item() * lambda_attn
             targets_rgb = real_images
             outputs_np = fake_images.cpu().detach().numpy()
             targets_np = targets_rgb.cpu().detach().numpy()
