@@ -13,7 +13,7 @@ from torchvision import transforms
 
 import tv_loss
 from Charbonnier_Loss import EdgeLoss, L1_Charbonnier_loss
-from MemoryNet import MemoryNet2, MemoryNet_C
+from MemoryNet import MemoryNet_C
 from dataset import SEN12MSCR_Dataset, get_filelists
 from ssim_tools import ssim
 from uent_model import AttnCGAN_CR
