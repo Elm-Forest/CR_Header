@@ -154,7 +154,7 @@ def lr_lambda(ep):
 scheduler = LambdaLR(optimizer, lr_lambda)
 
 print('Start Training!')
-
+torch.set_grad_enabled(True)
 meta_learner.train()
 for epoch in range(num_epochs):
     running_loss = 0.0
@@ -194,6 +194,7 @@ for epoch in range(num_epochs):
         loss_edge = torch.sum(
             torch.stack([criterion_edge(outputs[j], targets[:, 1:4, :, :]) for j in range(len(outputs))]))
         loss = loss_char * 0.3 + (0.05 * loss_edge) + loss_l1
+        loss.requires_grad_(True)
         loss.backward()
         loss_mask = 0.
         loss_tv = 0.
