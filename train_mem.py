@@ -191,15 +191,15 @@ for epoch in range(num_epochs):
         loss_char = torch.sum(
             torch.stack([criterion_char(outputs[j], targets[:, 1:4, :, :]) for j in range(len(outputs))]))
         loss_l1 = criterion_char(outputs[0], targets[:, 1:4, :, :])
-        loss_tv = criterion_TV(outputs[0])
         loss_edge = torch.sum(
             torch.stack([criterion_edge(outputs[j], targets[:, 1:4, :, :]) for j in range(len(outputs))]))
-        loss = loss_char * 0.3 + (0.05 * loss_edge) + loss_l1 + loss_tv * 0.02
+        loss = loss_char * 0.3 + (0.05 * loss_edge) + loss_l1
         loss.backward()
-        loss_mask = 0
+        loss_mask = 0.
+        loss_tv = 0.
         optimizer.step()
         running_loss += loss.item()
-        running_loss_TV += loss_tv.item()
+        running_loss_TV += loss_tv
         running_loss_mask += loss_mask
         running_loss_rgb += loss_l1.item()
         outputs = outputs[0]
