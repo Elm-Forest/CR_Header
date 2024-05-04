@@ -71,7 +71,7 @@ train_filelist, val_filelist, _ = get_filelists(csv_filepath)
 train_dataset = SEN12MSCR_Dataset(train_filelist, inputs_dir, targets_dir, sar_dir=opts.sar_dir,
                                   inputs_dir2=inputs_dir2, use_attention=True, cloudy_dir=opts.cloudy_dir)
 val_dataset = SEN12MSCR_Dataset(val_filelist, inputs_dir, targets_dir, sar_dir=opts.sar_dir, inputs_dir2=inputs_dir2,
-                                use_attention=False, cloudy_dir=opts.cloudy_dir)
+                                use_attention=True, cloudy_dir=opts.cloudy_dir)
 
 train_dataloader = DataLoader(train_dataset, batch_size=opts.batch_size, num_workers=opts.num_workers, shuffle=True)
 val_dataloader = DataLoader(val_dataset, batch_size=opts.batch_size, num_workers=opts.num_workers, shuffle=False)
@@ -191,16 +191,16 @@ for epoch in range(num_epochs):
         loss_char = torch.sum(
             torch.stack([criterion_char(outputs[j], targets[:, 1:4, :, :]) for j in range(len(outputs))]))
         loss_l1 = criterion_char(outputs[0], targets[:, 1:4, :, :])
-        loss_mask = criterion_char(outputs[0] * cloudy_attn, targets[:, 1:4, :, :] * cloudy_attn)
         loss_tv = criterion_TV(outputs[0])
         loss_edge = torch.sum(
             torch.stack([criterion_edge(outputs[j], targets[:, 1:4, :, :]) for j in range(len(outputs))]))
-        loss = loss_char * 0.3 + (0.05 * loss_edge) + loss_l1 + loss_mask + loss_tv * 0.02
+        loss = loss_char * 0.3 + (0.05 * loss_edge) + loss_l1 + loss_tv * 0.02
         loss.backward()
+        loss_mask = 0
         optimizer.step()
         running_loss += loss.item()
         running_loss_TV += loss_tv.item()
-        running_loss_mask += loss_mask.item()
+        running_loss_mask += loss_mask
         running_loss_rgb += loss_l1.item()
         outputs = outputs[0]
         outputs_np = outputs.cpu().detach().numpy()
