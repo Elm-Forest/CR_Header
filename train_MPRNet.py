@@ -27,8 +27,7 @@ parser.add_argument('--inputs_dir2', type=str, default='K:/dataset/ensemble/clf'
 parser.add_argument('--cloudy_dir', type=str, default='K:/dataset/selected_data_folder/s2_cloudy')
 parser.add_argument('--targets_dir', type=str, default='K:/dataset/selected_data_folder/s2_cloudFree')
 parser.add_argument('--sar_dir', type=str, default='K:/dataset/selected_data_folder/s1')
-parser.add_argument('--data_list_filepath', type=str,
-                    default='E:/Development Program/Pycharm Program/ECANet/csv/datasetfilelist.csv')
+parser.add_argument('--data_list_filepath', type=str, default='./csv/datasetfilelist.csv')
 parser.add_argument('--optimizer', type=str, default='Adam', help='Adam')
 parser.add_argument('--lr', type=float, default=1e-4, help='learning rate of optimizer')
 parser.add_argument('--lr_step', type=int, default=2, help='lr decay rate')
@@ -50,8 +49,8 @@ parser.add_argument('--input_channels', type=int, default=13)
 parser.add_argument('--use_sar', type=bool, default=True)
 parser.add_argument('--use_rgb', type=bool, default=True)
 parser.add_argument('--use_input2', type=bool, default=True)
-parser.add_argument('--load_weights', type=bool, default=False)
-parser.add_argument('--weights_path', type=str, default='weights/memorynet.pth')
+parser.add_argument('--load_weights', type=bool, default=True)
+parser.add_argument('--weights_path', type=str, default='weights/memorynet1.pth')
 parser.add_argument('--weight_decay', type=float, default=0.0001)
 opts = parser.parse_args()
 
@@ -100,21 +99,20 @@ else:
 
 # meta_learner.apply(weights_init)
 if opts.load_weights and opts.weights_path is not None:
-    print("Loading weights!")
+    print("Loading weights...")
     weights = torch.load(opts.weights_path, map_location=torch.device('cpu'))
     try:
-        meta_learner.load_state_dict(weights['state_dict'], strict=False)
+        meta_learner.load_state_dict(weights, strict=False)
+        print('Loading success!')
     except:
         new_state_dict = {k.replace('module.', ''): v for k, v in weights.items()}
-        # 加载新的状态字典到模型
         try:
             meta_learner.load_state_dict(new_state_dict, strict=False)
-        except:
-            try:
-                meta_learner.load_state_dict(new_state_dict['state_dict'], strict=False)
-            except:
-                print('pass loading weights')
-                pass
+            print('loading success after replace module')
+        except Exception as inst:
+            print('pass loading weights')
+            print(inst)
+
 train_sampler = None
 if len(opts.gpu_ids) > 1:
     print("Parallel training!")
@@ -137,6 +135,13 @@ criterion_edge = EdgeLoss().to(device)
 criterion_TV = tv_loss.TVLoss().to(device)
 num_epochs = opts.epoch
 log_step = opts.log_freq
+for name, param in meta_learner.named_parameters():
+    # 默认情况下冻结所有参数
+    param.requires_grad = False
+
+    # 检查参数名前缀，如果匹配特定模块，则解冻
+    if name.startswith('res_in') or name.startswith('rrdb_blocks') or name.startswith('tail'):
+        param.requires_grad = True
 
 
 def lr_lambda(ep):
@@ -345,6 +350,6 @@ for epoch in range(num_epochs):
     meta_learner.train()
 
     if epoch % opts.save_freq == 0:
-        torch.save(meta_learner.state_dict(), os.path.join(opts.checkpoint, f'checkpoint_{epoch}.pth'))
+        torch.save(meta_learner.state_dict(), os.path.join(opts.checkpoint, f'checkpoint_mem_{epoch}.pth'))
 
 torch.save(meta_learner.state_dict(), opts.save_model_dir)
