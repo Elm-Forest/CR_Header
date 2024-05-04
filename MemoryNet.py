@@ -406,7 +406,6 @@ class MemoryNet_C(nn.Module):
 
     def forward(self, s2_img, s1_img):
         x3_img = torch.cat((s2_img, s1_img), dim=1)
-        x_rgb = s2_img[:, 1:4, :, :]
         H = x3_img.size(2)
         W = x3_img.size(3)
         ##通过memory模块使得变为三个分支
@@ -491,7 +490,7 @@ class MemoryNet_C(nn.Module):
         x3_cat = self.stage3_orsnet(x3_cat, feat2, res2)
         # x3_cat = self.relu(self.tail3(x3_cat) + x3_img)
         stage3_img = self.tail3(x3_cat)
-        return [stage3_img + x_rgb, stage2_img, stage1_img]
+        return [stage3_img, stage2_img, stage1_img]
 
 
 class Bottleneck(nn.Module):
