@@ -1,6 +1,15 @@
+import functools
+
 import torch
-from torch import nn
-from torch.nn import init
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+def make_layer(block, n_layers):
+    layers = []
+    for _ in range(n_layers):
+        layers.append(block())
+    return nn.Sequential(*layers)
 
 
 class ResidualDenseBlock_5C(nn.Module):
@@ -15,10 +24,7 @@ class ResidualDenseBlock_5C(nn.Module):
         self.lrelu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
 
         # initialization
-        for m in [self.conv1, self.conv2, self.conv3, self.conv4, self.conv5]:
-            init.kaiming_normal_(m.weight, mode='fan_in', nonlinearity='leaky_relu')
-            if m.bias is not None:
-                nn.init.constant_(m.bias, 0)
+        # mutil.initialize_weights([self.conv1, self.conv2, self.conv3, self.conv4, self.conv5], 0.1)
 
     def forward(self, x):
         x1 = self.lrelu(self.conv1(x))
@@ -45,31 +51,34 @@ class RRDB(nn.Module):
         return out * 0.2 + x
 
 
-class RRDB_Lite(nn.Module):
-    """
-    Residual-in-Residual Dense Block (RRDB)
-    来源：ESRGAN (Enhanced Super-Resolution Generative Adversarial Networks)
-    作用：通过稠密残差块强化特征提取，有效提升图像的细节和清晰度。
-    """
+class RRDBNet(nn.Module):
+    def __init__(self, in_nc, out_nc, nf, nb, gc=32):
+        super(RRDBNet, self).__init__()
+        RRDB_block_f = functools.partial(RRDB, nf=nf, gc=gc)
 
-    def __init__(self, channels=64, growth_channel=32):
-        super(RRDB_Lite, self).__init__()
-        # 第一个DenseBlock
-        self.conv1 = nn.Conv2d(channels, growth_channel, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(channels + growth_channel, growth_channel, kernel_size=3, padding=1)
-        self.conv3 = nn.Conv2d(channels + 2 * growth_channel, channels, kernel_size=3, padding=1)
-        self.relu = nn.LeakyReLU(0.2, inplace=True)
-        for m in [self.conv1, self.conv2, self.conv3]:
-            init.kaiming_normal_(m.weight, mode='fan_in', nonlinearity='leaky_relu')
-            if m.bias is not None:
-                nn.init.constant_(m.bias, 0)
+        self.conv_first = nn.Conv2d(in_nc, nf, 3, 1, 1, bias=True)
+        self.RRDB_trunk = make_layer(RRDB_block_f, nb)
+        self.trunk_conv = nn.Conv2d(nf, nf, 3, 1, 1, bias=True)
+        #### upsampling
+        self.upconv1 = nn.Conv2d(nf, nf, 3, 1, 1, bias=True)
+        self.upconv2 = nn.Conv2d(nf, nf, 3, 1, 1, bias=True)
+        self.HRconv = nn.Conv2d(nf, nf, 3, 1, 1, bias=True)
+        self.conv_last = nn.Conv2d(nf, out_nc, 3, 1, 1, bias=True)
+
+        self.lrelu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
 
     def forward(self, x):
-        out = self.relu(self.conv1(x))
-        concat1 = torch.cat([x, out], 1)
-        out = self.relu(self.conv2(concat1))
-        concat2 = torch.cat([concat1, out], 1)
-        out = self.conv3(concat2)
-        # 残差缩放
-        out *= 0.2
-        return x + out
+        fea = self.conv_first(x)
+        trunk = self.trunk_conv(self.RRDB_trunk(fea))
+        fea = fea + trunk
+
+        fea = self.lrelu(self.upconv1(F.interpolate(fea, scale_factor=2, mode='nearest')))
+        fea = self.lrelu(self.upconv2(F.interpolate(fea, scale_factor=2, mode='nearest')))
+        out = self.conv_last(self.lrelu(self.HRconv(fea)))
+
+        return out
+
+
+if __name__ == '__main__':
+    torch.save(RRDBNet(in_nc=3, out_nc=3, nf=32, nb=4).state_dict(),'./model_test/RRDBNet.pth')
+

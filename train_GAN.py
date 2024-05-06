@@ -2,6 +2,7 @@ import argparse
 import os
 import warnings
 
+import lpips
 import numpy as np
 import torch
 from skimage.metrics import peak_signal_noise_ratio as psnr
@@ -19,7 +20,7 @@ from uent_model import AttnCGAN_CR
 
 warnings.filterwarnings('ignore')
 parser = argparse.ArgumentParser()
-parser.add_argument('--batch_size', type=int, default=2, help='batch size used for training')
+parser.add_argument('--batch_size', type=int, default=1, help='batch size used for training')
 parser.add_argument('--inputs_dir', type=str, default='K:/dataset/ensemble/dsen2')
 parser.add_argument('--inputs_dir2', type=str, default='K:/dataset/ensemble/clf')
 parser.add_argument('--targets_dir', type=str, default='K:/dataset/selected_data_folder/s2_cloudFree')
@@ -29,12 +30,12 @@ parser.add_argument('--data_list_filepath', type=str,
                     default='E:/Development Program/Pycharm Program/ECANet/csv/datasetfilelist.csv')
 parser.add_argument('--optimizer', type=str, default='Adam', help='Adam')
 parser.add_argument('--lr_gen', type=float, default=1e-4, help='learning rate of optimizer')
-parser.add_argument('--lr_dis', type=float, default=5e-5, help='learning rate of optimizer')
+parser.add_argument('--lr_dis', type=float, default=1e-4, help='learning rate of optimizer')
 parser.add_argument('--lr_step', type=int, default=2, help='lr decay rate')
 parser.add_argument('--lr_start_epoch_decay', type=int, default=1, help='epoch to start lr decay')
-parser.add_argument('--epoch', type=int, default=10)
+parser.add_argument('--epoch', type=int, default=20)
 parser.add_argument('--save_freq', type=int, default=1)
-parser.add_argument('--dis_backward_delay', type=int, default=3)
+parser.add_argument('--dis_backward_delay', type=int, default=1)
 parser.add_argument('--crop_size', type=int, default=None)
 parser.add_argument('--num_workers', type=int, default=0)
 parser.add_argument('--log_freq', type=int, default=10)
@@ -50,8 +51,9 @@ parser.add_argument('--input_channels', type=int, default=13)
 parser.add_argument('--use_sar', type=bool, default=True)
 parser.add_argument('--use_rgb', type=bool, default=True)
 parser.add_argument('--use_input2', type=bool, default=True)
-parser.add_argument('--load_weights', type=bool, default=False)
-parser.add_argument('--weights_path', type=str, default='weights/unet_carvana_scale0.5_epoch2.pth')
+parser.add_argument('--load_weights', type=bool, default=True)
+parser.add_argument('--weights_path', type=str, default='checkpoint/checkpoint_gen_4.pth')
+parser.add_argument('--weights2_path', type=str, default='checkpoint/checkpoint_dis_4.pth')
 parser.add_argument('--weight_decay', type=float, default=0.0001)
 opts = parser.parse_args()
 
@@ -70,23 +72,30 @@ else:
     output_channels = 13
 train_filelist, val_filelist, _ = get_filelists(csv_filepath)
 train_dataset = SEN12MSCR_Dataset(train_filelist, inputs_dir, targets_dir, sar_dir=opts.sar_dir,
-                                  inputs_dir2=inputs_dir2, use_attention=False, cloudy_dir=opts.cloudy_dir)
+                                  inputs_dir2=inputs_dir2, use_attention=True, cloudy_dir=opts.cloudy_dir)
 val_dataset = SEN12MSCR_Dataset(val_filelist, inputs_dir, targets_dir, sar_dir=opts.sar_dir, inputs_dir2=inputs_dir2,
-                                use_attention=False, cloudy_dir=opts.cloudy_dir)
-
+                                use_attention=True, cloudy_dir=opts.cloudy_dir)
 train_dataloader = DataLoader(train_dataset, batch_size=opts.batch_size, num_workers=opts.num_workers, shuffle=True)
 val_dataloader = DataLoader(val_dataset, batch_size=opts.batch_size, num_workers=opts.num_workers, shuffle=False)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-generator = AttnCGAN_CR(2, 13, 3, 2, bilinear=True).to(device)
-discriminator = Discriminator(in_ch=3, out_ch=3 + 3 + 2, gpu_ids=0).to(device)
-
+generator = AttnCGAN_CR(2, 13, 3, 3, bilinear=True).to(device)
+discriminator = Discriminator(in_ch=3, out_ch=2 + 3, gpu_ids=0).to(device)
+if opts.load_weights and opts.weights_path is not None:
+    weights = torch.load(opts.weights_path)
+    weights2 = torch.load(opts.weights2_path)
+    try:
+        generator.load_state_dict(weights, strict=False)
+        discriminator.load_state_dict(weights2, strict=False)
+    except:
+        pass
 criterion_L1 = L1_Charbonnier_loss().to(device)
 criterion_L2 = nn.MSELoss().to(device)
 criterion_TV = TVLoss(weight=1.0).to(device)
-criterionSoftplus = nn.Softplus()
-criterion_GAN = nn.MSELoss()
+criterion_vgg = lpips.LPIPS(net='alex').to(device)
+criterionSoftplus = nn.Softplus().to(device)
+criterion_GAN = nn.MSELoss().to(device)
 num_epochs = opts.epoch
 log_step = opts.log_freq
 if len(opts.gpu_ids) > 1:
@@ -124,11 +133,17 @@ for epoch in range(num_epochs):
     original_ssim2 = 0.0
     running_psnr = 0.0
     running_loss_dis = 0.0
-    running_loss_L1 = 0.0
     running_loss_GAN = 0.0
     running_loss_rgb = 0.0
     running_loss_s2 = 0.0
     running_loss_M = 0.0
+    running_loss_TV = 0.0
+    running_loss_vgg = 0.0
+    running_loss_attn = 0.0
+    running_loss_roi = 0.0
+    running_loss_sar = 0.0
+    original_vgg = 0.0
+    original_vgg2 = 0.0
     delay_steps = 0
     for i, images in enumerate(train_dataloader):
 
@@ -138,23 +153,25 @@ for epoch in range(num_epochs):
         sars = images["sar"].to(device)
         inputs = images["input"].to(device)
         inputs2 = images["input2"].to(device)
+        cloudy = images["cloudy"].to(device)
+        mask = images["mask"].to(device)
         # mask = images["mask"].to(device)
         batch_size = real_images.size(0)
-        out = generator(inputs, inputs2, sars)
-        fake_images, out_s2 = out[0], out[1]
+        out = generator(inputs, inputs2, sars, cloudy)
+        fake_images, out_s2, out_sar, out_attn = out[0], out[1], out[2], out[3]
         delay_steps += 1
         if delay_steps % opts.dis_backward_delay == 0:
             # 训练判别器D
             optimizer_D.zero_grad()
 
             # 真实图像通过D
-            real_ab = torch.cat((real_images, inputs[:, 1:4, :, :], inputs2[:, 1:4, :, :], sars), 1)  # 真实图像对
+            real_ab = torch.cat((real_images, cloudy[:, 1:4, :, :], sars), 1)  # 真实图像对
             pred_real = discriminator(real_ab)
             loss_D_real = (torch.sum(criterionSoftplus(-pred_real))
                            / pred_real.size(0) / pred_real.size(2) / pred_real.size(3))
 
             # 生成假图像并通过D
-            fake_ab = torch.cat((fake_images.detach(), inputs[:, 1:4, :, :], inputs2[:, 1:4, :, :], sars), 1)  # 使用生成的图像
+            fake_ab = torch.cat((fake_images.detach(), cloudy[:, 1:4, :, :], sars), 1)  # 使用生成的图像
             pred_fake = discriminator(fake_ab)
             loss_D_fake = (torch.sum(criterionSoftplus(pred_fake))
                            / pred_fake.size(0) / pred_fake.size(2) / pred_fake.size(3))
@@ -168,28 +185,38 @@ for epoch in range(num_epochs):
 
         # 训练生成器G
         optimizer_G.zero_grad()
-        fake_ab = torch.cat((fake_images, inputs[:, 1:4, :, :], inputs2[:, 1:4, :, :], sars), 1)  # 使用生成的图像
+        fake_ab = torch.cat((fake_images, cloudy[:, 1:4, :, :], sars), 1)  # 使用生成的图像
         pred_fake = discriminator(fake_ab)
         # 更新G，使D将生成的图像分类为真
         loss_G_GAN = (torch.sum(criterionSoftplus(-pred_fake))
                       / pred_fake.size(0) / pred_fake.size(2) / pred_fake.size(3))
 
         # 总损失为GAN损失和L1损失的组合
+        attn_weights = mask.repeat(1, fake_images.size(1), 1, 1)
         loss_RGB = criterion_L1(fake_images, real_images)
         loss_S2 = criterion_L1(out_s2, targets)
-        loss_M = criterion_TV(fake_images)
-        loss_G = loss_RGB * 100 + loss_S2 * 10 + loss_M
-        loss_G = loss_G_GAN + loss_G
+        loss_sar = criterion_L1(out_sar, targets)
+        loss_ROI = criterion_L1(fake_images * attn_weights, real_images * attn_weights)
+        loss_attn = criterion_L2(out_attn[:, 0, :, :], mask)
+        loss_TV = criterion_TV(fake_images)
+        loss_vgg = criterion_vgg(fake_images, real_images)
+        # loss_color = criterion_Color(outputs, targets_rgb)
+        # loss = loss_l1 * 100 + loss_color * 0.01
+        loss_G = loss_RGB * 100 + loss_S2 * 10 + loss_TV + loss_sar * 10 + loss_ROI * 100 + loss_vgg * 7 + loss_attn * 1 + loss_G_GAN * 5
+
         loss_G.backward()
         optimizer_G.step()
 
         running_loss += loss_G.item()
-        running_loss_L1 += loss_RGB.item()
-        running_loss_GAN += loss_G_GAN.item()
+        running_loss_GAN += loss_G_GAN.item() * 5
         running_loss_rgb += loss_RGB.item() * 100
-        running_loss_M += loss_M.item()
+        running_loss_TV += loss_TV.item()
         running_loss_s2 += loss_S2.item() * 10
+        running_loss_sar += loss_sar.item() * 10
         targets_rgb = real_images
+        running_loss_roi += loss_ROI.item() * 100
+        running_loss_attn += loss_attn.item() * 5
+        running_loss_vgg += loss_vgg.item() * 1
         outputs_np = fake_images.cpu().detach().numpy()
         targets_np = targets_rgb.cpu().detach().numpy()
 
@@ -199,28 +226,38 @@ for epoch in range(num_epochs):
         if opts.use_rgb:
             ori_ssim = ssim(inputs[:, 1:4, :, :], targets_rgb)
             ori_ssim2 = ssim(inputs2[:, 1:4, :, :], targets_rgb)
+            ori_vgg = criterion_vgg(inputs[:, 1:4, :, :], targets_rgb).item()
+            ori_vgg2 = criterion_vgg(inputs2[:, 1:4, :, :], targets_rgb).item()
         else:
             ori_ssim = ssim(inputs, targets_rgb)
             ori_ssim2 = ssim(inputs2, targets_rgb)
+            ori_vgg = criterion_vgg(inputs, targets_rgb) * 10
+            ori_vgg2 = criterion_vgg(inputs2, targets_rgb) * 10
 
         batch_psnr = np.mean([psnr(targets_np[b], outputs_np[b]) for b in range(outputs_np.shape[0])])
         running_ssim += batch_ssim
         running_psnr += batch_psnr
         original_ssim += ori_ssim
         original_ssim2 += ori_ssim2
-
+        original_vgg += ori_vgg
+        original_vgg2 += ori_vgg2
         if (i + 1) % log_step == 0:
-            print(f"Epoch [{epoch + 1}/{num_epochs}], Step [{i + 1}/{len(train_dataloader)}], "
-                  f"Loss_gen: {running_loss / log_step:.4f}, "
-                  f"Loss_dis: {running_loss_dis / (log_step / opts.dis_backward_delay):.4f}, "
-                  f"Loss_RGB: {running_loss_rgb / log_step:.4f}, "
-                  f"Loss_S2: {running_loss_s2 / log_step:.4f}, "
-                  f"Loss_TV: {running_loss_M / log_step:.4f}, "
-                  f"Loss_GAN: {running_loss_GAN / log_step:.4f}, "
+            print(f"Epoch [{epoch + 1}/{num_epochs}], [{i + 1}/{len(train_dataloader)}], "
+                  f"L_gen: {running_loss / log_step:.4f}, "
+                  f"L_dis: {running_loss_dis / (log_step / opts.dis_backward_delay):.4f}, "
+                  f"L_RGB: {running_loss_rgb / log_step:.4f}, "
+                  f"L_ROI: {running_loss_roi / log_step:.4f}, "
+                  f"L_GAN: {running_loss_GAN / log_step:.4f}, "
+                  f"L_LPIPS: {running_loss_vgg / log_step:.4f}, "
+                  f"L_S2: {running_loss_s2 / log_step:.4f}, "
+                  f"L_sar: {running_loss_sar / log_step:.4f}, "
+                  f"L_attn: {running_loss_attn / log_step:.4f}, "
+                  f"L_TV: {running_loss_TV / log_step:.4f}, "
                   f"SSIM: {running_ssim / log_step:.4f}, "
                   f"PSNR: {running_psnr / log_step:.4f}, "
-                  f"ORI_SSIM: {original_ssim / log_step:.4f}, "
-                  f"ORI_SSIM2: {original_ssim2 / log_step:.4f}")
+                  f"m1: {original_ssim / log_step:.4f}, {original_vgg / log_step:.4f}, "
+                  f"m2: {original_ssim2 / log_step:.4f}, {original_vgg2 / log_step:.4f}")
+
             running_loss = 0.0
             running_ssim = 0.0
             running_psnr = 0.0
@@ -228,29 +265,41 @@ for epoch in range(num_epochs):
             original_ssim2 = 0.0
             running_loss_dis = 0.0
             running_loss_GAN = 0.0
-            running_loss_L1 = 0.0
             running_loss_rgb = 0.0
             running_loss_s2 = 0.0
-            running_loss_M = 0.0
+            running_loss_TV = 0.0
+            running_loss_vgg = 0.0
+            running_loss_attn = 0.0
+            running_loss_roi = 0.0
+            running_loss_sar = 0.0
+            original_vgg = 0.0
+            original_vgg2 = 0.0
     scheduler_G.step()
     scheduler_D.step()
     print('start val')
+
     running_loss = 0.0
     running_ssim = 0.0
     running_psnr = 0.0
+    running_val_loss = 0.0
     original_ssim = 0.0
     original_ssim2 = 0.0
+    original_vgg = 0.0
+    original_vgg2 = 0.0
     generator.eval()
     with torch.no_grad():
         val_loss, val_ssim, val_psnr = 0.0, 0.0, 0.0
-        running_val_loss = 0.0
         total_psnr = 0.0
         total_ssim = 0.0
         total_ori_ssim = 0.0
         total_ori_ssim2 = 0.0
+        total_original_vgg = 0.0
+        total_original_vgg2 = 0.0
         for i, images in enumerate(val_dataloader):
             inputs = images["input"].to(device)
             targets = images["target"].to(device)
+            cloudy = images["cloudy"].to(device)
+            mask = images["mask"].to(device)
             inputs2 = torch.zeros(inputs.shape)
             if opts.use_sar is not None and opts.use_input2 is None:
                 sars = images["sar"].to(device)
@@ -258,10 +307,11 @@ for epoch in range(num_epochs):
             elif opts.use_sar is not None and opts.use_input2 is not None:
                 sars = images["sar"].to(device)
                 inputs2 = images["input2"].to(device)
-                out = generator(inputs, inputs2, sars)
-                outputs = out[0]
+                # concatenated = torch.cat((inputs, inputs2), dim=1)
+                outputs = generator(inputs, inputs2, sars, cloudy)
             else:
                 outputs = generator(inputs)
+            outputs = outputs[0]
             if opts.use_rgb:
                 targets_rgb = targets[:, 1:4, :, :]
             else:
@@ -282,9 +332,13 @@ for epoch in range(num_epochs):
             if opts.use_rgb:
                 ori_ssim = ssim(inputs[:, 1:4, :, :], targets_rgb)
                 ori_ssim2 = ssim(inputs2[:, 1:4, :, :], targets_rgb)
+                ori_vgg = criterion_vgg(inputs[:, 1:4, :, :], targets_rgb).item() * 10
+                ori_vgg2 = criterion_vgg(inputs2[:, 1:4, :, :], targets_rgb).item() * 10
             else:
                 ori_ssim = ssim(inputs, targets_rgb)
                 ori_ssim2 = ssim(inputs2, targets_rgb)
+                ori_vgg = criterion_vgg(inputs, targets_rgb) * 10
+                ori_vgg2 = criterion_vgg(inputs2, targets_rgb) * 10
             val_psnr = np.mean([psnr(targets_np[b], outputs_np[b]) for b in range(outputs_np.shape[0])])
 
             total_psnr += val_psnr
@@ -295,6 +349,10 @@ for epoch in range(num_epochs):
             running_ssim += val_ssim
             original_ssim += ori_ssim
             original_ssim2 += ori_ssim2
+            original_vgg += ori_vgg
+            original_vgg2 += ori_vgg2
+            total_original_vgg += ori_vgg
+            total_original_vgg2 += ori_vgg2
             if (i + 1) % log_step == 0:
                 print(f"VAL: Step [{i + 1}/{len(val_dataloader)}], "
                       f"Loss: {running_loss / log_step:.4f}, "

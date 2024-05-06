@@ -2,6 +2,7 @@ import argparse
 import os
 import warnings
 
+import lpips
 import numpy as np
 import torch
 from skimage.metrics import peak_signal_noise_ratio as psnr
@@ -14,11 +15,12 @@ from Charbonnier_Loss import L1_Charbonnier_loss
 from dataset import SEN12MSCR_Dataset, get_filelists
 from gan_unet import Discriminator
 from ssim_tools import ssim
+from tv_loss import TVLoss
 from uent_model import AttnCGAN_CR
 
 warnings.filterwarnings('ignore')
 parser = argparse.ArgumentParser()
-parser.add_argument('--batch_size', type=int, default=2, help='batch size used for training')
+parser.add_argument('--batch_size', type=int, default=1, help='batch size used for training')
 parser.add_argument('--inputs_dir', type=str, default='K:/dataset/ensemble/dsen2')
 parser.add_argument('--inputs_dir2', type=str, default='K:/dataset/ensemble/clf')
 parser.add_argument('--targets_dir', type=str, default='K:/dataset/selected_data_folder/s2_cloudFree')
@@ -77,12 +79,15 @@ val_dataloader = DataLoader(val_dataset, batch_size=opts.batch_size, num_workers
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-generator = AttnCGAN_CR(2, 13, 3, 2, bilinear=True).to(device)
-discriminator = Discriminator(in_channels=3).to(device)
+generator = AttnCGAN_CR(2, 13, 3, 3, bilinear=True).to(device)
+discriminator = Discriminator(in_channels=3 + 2).to(device)
 
 criterion_GAN = nn.MSELoss().to(device)
 criterion_L1 = L1_Charbonnier_loss().to(device)
+# criterion_Color = ColorLoss().to(device)
 criterion_L2 = nn.MSELoss().to(device)
+criterion_TV = TVLoss(weight=1.0).to(device)
+criterion_vgg = lpips.LPIPS(net='alex').to(device)
 num_epochs = opts.epoch
 log_step = opts.log_freq
 if len(opts.gpu_ids) > 1:
@@ -129,6 +134,9 @@ for epoch in range(num_epochs):
         # 准备真实图像和标签
         real_images = images["target"].to(device)[:, 1:4, :, :]  # 假设去雾后的真实RGB图像
         targets = images["target"].to(device)
+        inputs = images["input"].to(device)
+        cloudy = images["cloudy"].to(device)
+        mask = images["mask"].to(device)
         batch_size = real_images.size(0)
         real_labels = torch.ones(batch_size, 1, device=device)
         fake_labels = torch.zeros(batch_size, 1, device=device)

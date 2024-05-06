@@ -3,15 +3,15 @@ import numpy as np
 import rasterio
 import torch
 from matplotlib import pyplot as plt
+from matplotlib.cm import jet
 from skimage.metrics import peak_signal_noise_ratio as psnr
-
 from MemoryNet import MemoryNet2
 from SPANet import SPANet
 from feature_detectors import get_cloud_cloudshadow_mask
 from ssim_tools import ssim
-from uent_model import AttnCGAN_CR
+from uent_model import AttnCGAN_CR0
 
-device = torch.device("cpu")
+device = torch.device("cuda:0")
 
 
 def get_preview(file, predicted_file=False, bands=None, brighten_limit=None, sar_composite=False):
@@ -49,6 +49,7 @@ def get_image(path):
 
 
 def get_normalized_data(data_image, data_type=2):
+    data_image = data_image.copy()
     clip_min = [[-25.0, -32.5],
                 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -107,7 +108,7 @@ def load_model(path, model_name):
     if model_name == 'mprnet':
         meta_learner = MemoryNet2(in_c=39, in_s1=2, n_feat=64, scale_unetfeats=32)
     elif model_name == 'unet':
-        meta_learner = AttnCGAN_CR(2, 13, 3, ensemble_num=2 + 1, bilinear=True).to(device)
+        meta_learner = AttnCGAN_CR0(2, 13, 3, ensemble_num=2 + 1, bilinear=True).to(device)
     elif model_name == 'spa_gan':
         meta_learner = SPANet(2, 13, 3, 128).to(device)
     checkpoint = torch.load(path, map_location=torch.device('cpu'))
@@ -176,15 +177,18 @@ def get_attention_mask(cloudy_path):
             't_mask': torch.from_numpy(t_mask.astype('float32')).unsqueeze(0)}
 
 
+# error ROIs1158_spring_39
+# attn ROIs1158_spring_9_p562
 if __name__ == '__main__':
     model_name = 'unet'  # unet / mprnet / spa_gan
-    name = 'ROIs1158_spring_15_p392.tif'  # 113p167 40p40
+    name = 'ROIs1158_spring_1_p593.tif'  # 113p167 40p40 ROIs1158_spring_15_p392
     input_image = f'K:/dataset/ensemble/dsen2/{name}'
     input_image2 = f'K:/dataset/ensemble/clf/{name}'
     cloudy_image = f'K:\dataset\selected_data_folder\s2_cloudy\\{name}'
     target_image = f'K:\dataset\selected_data_folder\s2_cloudFree\\{name}'
     sar_image = f'K:\dataset\selected_data_folder\s1\\{name}'
-    meta_path = 'checkpoint/checkpoint_0.pth'
+    meta_path = 'checkpoint/checkpoint_xiaorong_loss_4.pth'  # 22, 25 , 14,36
+    meta_path = 'checkpoint/checkpoint_best9514.pth'  # 22, 25 , 14,36
     images = build_data(input_image, target_image, cloudy_image, sar_image, input_image2)
     inputs = images["input"]
     inputs2 = images["input2"]
@@ -199,6 +203,7 @@ if __name__ == '__main__':
     print(inputs.unsqueeze(dim=0).shape)
     outputs = None
     M = None
+    sar_trans = None
     if model_name == 'mprnet':
         concatenated = torch.cat((cloudy.unsqueeze(dim=0), inputs.unsqueeze(dim=0),
                                   inputs2.unsqueeze(dim=0)), dim=1).to(device)
@@ -208,48 +213,70 @@ if __name__ == '__main__':
     elif model_name == 'unet':
         out = meta_learner(inputs.to(device).unsqueeze(dim=0), inputs2.to(device).unsqueeze(dim=0),
                            sar.to(device).unsqueeze(dim=0), cloudy.to(device).unsqueeze(dim=0))
-        M = out[-1][:, 0, :, :].detach().cpu().squeeze(dim=0).squeeze(dim=0)
+        M = out[-3][:, 0, :, :].detach().cpu().squeeze(dim=0).squeeze(dim=0)
+        stage2 = out[1].detach().cpu().squeeze(dim=0)
+        stage1 = out[4].detach().cpu().squeeze(dim=0)
         import torch.nn.functional as F
 
-        cloudy1 = F.relu(cloudy_ori[1, :, :] - cloudy_ori[1, :, :].mean())
-        cloudy1 = F.sigmoid(cloudy1) - 0.8
-        cloudy1 = F.relu(cloudy1)
-        cloudy1[cloudy1 == 0] = 0.1
+        # cloudy1 = F.relu(cloudy_ori[1, :, :] - cloudy_ori[1, :, :].mean())
+        # cloudy1 = F.sigmoid(cloudy1) - 0.8
+        # cloudy1 = F.relu(cloudy1)
+        # cloudy1[cloudy1 == 0] = 0.1
         plt.figure(figsize=(6, 6))
         plt.imshow(M)
-        plt.title('M')
         plt.axis('off')  # 关闭坐标轴标号和刻度
+        plt.savefig('./M.png', dpi=600, bbox_inches='tight', pad_inches=0)
         plt.show()
         outputs = out[0]
+        sar_trans = out[-1]
+        sar_trans = sar_trans.cpu().squeeze(dim=0).detach().numpy()
+        sar_trans = stage2.numpy()
     elif model_name == 'spa_gan':
         concatenated = torch.cat((inputs, inputs2, cloudy), dim=0)  # 假设这是另一种形式的输入
         M, fake_images = meta_learner(sar.to(device).unsqueeze(dim=0), cloudy.to(device).unsqueeze(dim=0))
         M = M[:, 0, :, :].detach().cpu().squeeze(dim=0).squeeze(dim=0)
-        plt.figure(figsize=(6, 6))
-        plt.imshow(M.clip(0, 1))
-        plt.title('M')
-        plt.axis('off')  # 关闭坐标轴标号和刻度
-        plt.show()
+        # plt.figure(figsize=(6, 6))
+        # plt.imshow(M.clip(0, 1))
+        # plt.title('M')
+        # plt.axis('off')  # 关闭坐标轴标号和刻度
+        # plt.show()
         outputs = fake_images
     outputs_rgb = outputs.cpu().detach() * 10000
     outputs_rgb = get_normalized_data(outputs_rgb.squeeze(dim=0).numpy(), 2)
+    from focal_frequency_loss import FocalFrequencyLoss as FFL
+
+    ffl = FFL(loss_weight=1.0, alpha=1.0)
     criterion_vgg = lpips.LPIPS(net='alex').to(device)
     print('Dsen2CR', ssim(inputs[1:4, :, :].unsqueeze(0), targets[1:4, :, :].unsqueeze(0), window_size=3),
           psnr(inputs[1:4, :, :].detach().numpy(), targets[1:4, :, :].detach().numpy()),
           criterion_vgg(inputs[1:4, :, :].unsqueeze(0).to(device),
-                        targets[1:4, :, :].to(device).unsqueeze(0)).item())
+                        targets[1:4, :, :].to(device).unsqueeze(0)).item(),
+          ffl(inputs[1:4, :, :].unsqueeze(0).to(device),
+              targets[1:4, :, :].to(device).unsqueeze(0)).item() * 100)
     print('Glf2CR', ssim(inputs2[1:4, :, :].unsqueeze(0), targets[1:4, :, :].unsqueeze(0), window_size=3),
           psnr(inputs2[1:4, :, :].detach().numpy(), targets[1:4, :, :].detach().numpy()),
           criterion_vgg(inputs2[1:4, :, :].unsqueeze(0).to(device),
-                        targets[1:4, :, :].to(device).unsqueeze(0)).item())
+                        targets[1:4, :, :].to(device).unsqueeze(0)).item(),
+          ffl(inputs2[1:4, :, :].unsqueeze(0).to(device),
+              targets[1:4, :, :].to(device).unsqueeze(0)).item() * 100)
     print('Avg', ssim(avg[1:4, :, :].unsqueeze(0), targets[1:4, :, :].unsqueeze(0), window_size=3),
           psnr(avg[1:4, :, :].detach().numpy(), targets[1:4, :, :].detach().numpy()),
           criterion_vgg(avg[1:4, :, :].unsqueeze(0).to(device),
-                        targets[1:4, :, :].to(device).unsqueeze(0)).item())
+                        targets[1:4, :, :].to(device).unsqueeze(0)).item(),
+          ffl(avg[1:4, :, :].unsqueeze(0).to(device),
+              targets[1:4, :, :].to(device).unsqueeze(0)).item() * 100)
     print('Enm', ssim(torch.from_numpy(outputs_rgb).unsqueeze(0), targets[1:4, :, :].unsqueeze(0), window_size=3),
           psnr(outputs_rgb, targets[1:4, :, :].detach().numpy()),
           criterion_vgg(torch.from_numpy(outputs_rgb).to(device),
-                        targets[1:4, :, :].to(device).unsqueeze(0)).item())
+                        targets[1:4, :, :].to(device).unsqueeze(0)).item(),
+          ffl(torch.from_numpy(outputs_rgb).to(device).unsqueeze(0),
+              targets[1:4, :, :].to(device).unsqueeze(0)).item() * 100)
+    print('stage2', ssim(stage2[0:3, :, :].unsqueeze(0), targets[1:4, :, :].unsqueeze(0), window_size=3),
+          psnr(stage2[0:3, :, :].detach().numpy(), targets[1:4, :, :].detach().numpy()),
+          criterion_vgg(stage2[0:3, :, :].unsqueeze(0).to(device),
+                        targets[1:4, :, :].to(device).unsqueeze(0)).item(),
+          ffl(stage2[0:3, :, :].unsqueeze(0).to(device),
+              targets[1:4, :, :].to(device).unsqueeze(0)).item() * 100)
     inputs_R_channel = inputs[3, :, :]
     inputs_G_channel = inputs[2, :, :]
     inputs_B_channel = inputs[1, :, :]
@@ -268,6 +295,17 @@ if __name__ == '__main__':
     output_R_channel = outputs_rgb[2, :, :]
     output_G_channel = outputs_rgb[1, :, :]
     output_B_channel = outputs_rgb[0, :, :]
+    if sar_trans is not None:
+        sar_trans_R_channel = sar_trans[2, :, :]
+        sar_trans_G_channel = sar_trans[1, :, :]
+        sar_trans_B_channel = sar_trans[0, :, :]
+        sar_trans_rgb = get_rgb_preview(sar_trans_R_channel, sar_trans_G_channel, sar_trans_B_channel,
+                                        brighten_limit=2000)
+        plt.figure(figsize=(6, 6))
+        plt.imshow(sar_trans_rgb, cmap='gray')
+        plt.title('sar_trans_rgb')
+        plt.axis('off')  # 关闭坐标轴标号和刻度
+        plt.show()
     avg_R_channel = avg[3, :, :]
     avg_G_channel = avg[2, :, :]
     avg_B_channel = avg[1, :, :]
@@ -279,9 +317,14 @@ if __name__ == '__main__':
                                      brighten_limit=2000)
     cloudy_rgb = get_rgb_preview(cloudy_R_channel, cloudy_G_channel, cloudy_B_channel, brighten_limit=2000)
     output_rgb = get_rgb_preview(output_R_channel, output_G_channel, output_B_channel, brighten_limit=2000)
+
     avg_rgb = get_rgb_preview(avg_R_channel, avg_G_channel, avg_B_channel, brighten_limit=1500)
     sar_preview = get_preview(sar_image, False, [1, 2, 2], sar_composite=True)
-    plt.imsave('im.png', output_rgb)
+    plt.imshow(output_rgb)
+    plt.axis('off')
+    # plt.savefig('./attn.png', dpi=600, bbox_inches='tight', pad_inches=0)
+    plt.savefig('./pred.png', dpi=600, bbox_inches='tight', pad_inches=0)
+    plt.close()
     plt.figure(figsize=(6, 6))
     plt.imshow(inputs_rgb)
     plt.title('input')
@@ -319,6 +362,17 @@ if __name__ == '__main__':
     plt.show()
     plt.figure(figsize=(6, 6))
     plt.imshow(mask.squeeze(dim=0))
-    plt.title('M')
     plt.axis('off')  # 关闭坐标轴标号和刻度
+    plt.savefig('./mask.png', dpi=600, bbox_inches='tight', pad_inches=0)
+    plt.show()
+    heatmap = jet(M.numpy())[:, :, :3]  # 使用jet色彩图，丢弃alpha通道因为原始图像可能不支持透明度
+    # 将RGB图像的像素值范围从0-255转换到0-1
+    normalized_rgb = targets_rgb / 255.0
+    # 将热图应用于原始图像
+    highlighted_image = 0.45 * normalized_rgb + 0.55 * heatmap  # 调整这里的系数可以改变热图的透明度
+    # 显示结果
+    plt.figure(figsize=(10, 5))  # 如果你想更改图像显示大小
+    plt.imshow(highlighted_image)
+    plt.axis('off')
+    plt.savefig('./cam.png', dpi=600, bbox_inches='tight', pad_inches=0)
     plt.show()
