@@ -181,7 +181,7 @@ def get_attention_mask(cloudy_path):
 # attn ROIs1158_spring_9_p562
 if __name__ == '__main__':
     model_name = 'unet'  # unet / mprnet / spa_gan
-    name = 'ROIs1158_spring_1_p593.tif'  # 113p167 40p40 ROIs1158_spring_15_p392
+    name = 'ROIs1158_spring_15_p392.tif'  # 113p167 40p40 ROIs1158_spring_15_p392
     input_image = f'K:/dataset/ensemble/dsen2/{name}'
     input_image2 = f'K:/dataset/ensemble/clf/{name}'
     cloudy_image = f'K:\dataset\selected_data_folder\s2_cloudy\\{name}'
@@ -189,6 +189,7 @@ if __name__ == '__main__':
     sar_image = f'K:\dataset\selected_data_folder\s1\\{name}'
     meta_path = 'checkpoint/checkpoint_xiaorong_loss_4.pth'  # 22, 25 , 14,36
     meta_path = 'checkpoint/checkpoint_best9514.pth'  # 22, 25 , 14,36
+    meta_path = 'weights/tua_cr.pth'
     images = build_data(input_image, target_image, cloudy_image, sar_image, input_image2)
     inputs = images["input"]
     inputs2 = images["input2"]
@@ -230,7 +231,7 @@ if __name__ == '__main__':
         outputs = out[0]
         sar_trans = out[-1]
         sar_trans = sar_trans.cpu().squeeze(dim=0).detach().numpy()
-        sar_trans = stage2.numpy()
+        # sar_trans = stage2.numpy()
     elif model_name == 'spa_gan':
         concatenated = torch.cat((inputs, inputs2, cloudy), dim=0)  # 假设这是另一种形式的输入
         M, fake_images = meta_learner(sar.to(device).unsqueeze(dim=0), cloudy.to(device).unsqueeze(dim=0))

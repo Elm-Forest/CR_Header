@@ -247,7 +247,7 @@ class AttnCGAN_CR(nn.Module):
 
 class AttnCGAN_CR0(nn.Module):
     def __init__(self, in_channels_sar=2, in_channels_s2=13, out_channels=3, ensemble_num=2, bilinear=True,
-                 feature_c=32, num_rrdb=8, cuda=True):
+                 feature_c=32, num_rrdb=12, cuda=True):
         super(AttnCGAN_CR0, self).__init__()
         self.bilinear = bilinear
         self.sar_trans = Sar_Translate(in_channels_sar=in_channels_sar, out_channels=out_channels)
@@ -286,9 +286,8 @@ class AttnCGAN_CR0(nn.Module):
         # self.res_block10 = PartialBasicBlock(feature_c, feature_c)
         # self.res_block11 = PartialBasicBlock(feature_c, feature_c)
         self.out_s2 = (OutConv(feature_c, out_channels))
-        self.conv_in_RDB = conv1x1(feature_c, 64)
-        self.rrdb_blocks = nn.Sequential(*[RRDB(64) for _ in range(num_rrdb)])
-        self.outc = (OutConv(64, out_channels))
+        self.rrdb_blocks = nn.Sequential(*[RRDB(feature_c) for _ in range(num_rrdb)])
+        self.outc = (OutConv(feature_c, out_channels))
         self.lrelu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
 
     def forward(self, x11, x12, x2, cloudy):
@@ -329,12 +328,10 @@ class AttnCGAN_CR0(nn.Module):
         out = self.res_block7(out, attn3)
         out = self.res_block8(out, attn3)
         _out = self.res_block9(out, attn3)
-        out_s2 = x + _out
+        out = x + _out
         stage2 = self.out_s2(out)
         # III. Enhance Output
-        out_s2 = self.conv_in_RDB(out_s2)
-        out = self.rrdb_blocks(out_s2)
-        out = out_s2 + out
+        out = self.rrdb_blocks(self.lrelu(out))
         out = self.outc(self.lrelu(out))
         return [out, stage2, sar_trans, attn3, stage1, _out]
 
