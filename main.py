@@ -175,7 +175,7 @@ for epoch in range(num_epochs):
         # Stage III : 100 + 10 + 1 = 111
         loss_stage3_l1 = criterion_L1(outputs, targets_rgb) * 100
         loss_TV = criterion_TV(outputs)
-        loss_vgg = criterion_vgg(outputs, targets_rgb).mean()  * 7
+        loss_vgg = criterion_vgg(outputs, targets_rgb).sum() * 7
         loss_ff = criterion_ff(outputs, targets_rgb) * 10
         loss_stage3 = loss_stage3_l1 + loss_TV + loss_vgg + loss_ff
 
@@ -204,13 +204,13 @@ for epoch in range(num_epochs):
         if opts.use_rgb:
             ori_ssim = ssim(inputs[:, 1:4, :, :], targets_rgb)
             ori_ssim2 = ssim(inputs2[:, 1:4, :, :], targets_rgb)
-            ori_vgg = criterion_vgg(inputs[:, 1:4, :, :], targets_rgb).item() * 10
-            ori_vgg2 = criterion_vgg(inputs2[:, 1:4, :, :], targets_rgb).item() * 10
+            ori_vgg = criterion_vgg(inputs[:, 1:4, :, :], targets_rgb).sum().item() * 10
+            ori_vgg2 = criterion_vgg(inputs2[:, 1:4, :, :], targets_rgb).sum().item() * 10
         else:
             ori_ssim = ssim(inputs, targets_rgb)
             ori_ssim2 = ssim(inputs2, targets_rgb)
-            ori_vgg = criterion_vgg(inputs, targets_rgb) * 10
-            ori_vgg2 = criterion_vgg(inputs2, targets_rgb) * 10
+            ori_vgg = criterion_vgg(inputs, targets_rgb).sum().item()  * 10
+            ori_vgg2 = criterion_vgg(inputs2, targets_rgb).sum().item()  * 10
 
         running_ssim += batch_ssim
         running_psnr += batch_psnr
@@ -312,19 +312,19 @@ for epoch in range(num_epochs):
             targets_np = targets_rgb.cpu().numpy()
 
             val_loss = criterion_L1(outputs, targets_rgb).item()
-            val_vgg = criterion_vgg(outputs, targets_rgb).item()
+            val_vgg = criterion_vgg(outputs, targets_rgb).sum().item()
             val_ssim = ssim(outputs, targets_rgb)
             val_psnr = np.mean([psnr(targets_np[b], outputs_np[b]) for b in range(outputs_np.shape[0])])
 
             ori_loss = criterion_L1(inputs[:, 1:4, :, :], targets_rgb).item()
             ori_psnr = np.mean([psnr(targets_np[b], inputs_np[b]) for b in range(inputs_np.shape[0])])
             ori_ssim = ssim(inputs[:, 1:4, :, :], targets_rgb)
-            ori_vgg = criterion_vgg(inputs[:, 1:4, :, :], targets_rgb).item()
+            ori_vgg = criterion_vgg(inputs[:, 1:4, :, :], targets_rgb).sum().item()
 
             ori_loss2 = criterion_L1(inputs2[:, 1:4, :, :], targets_rgb).item()
             ori_psnr2 = np.mean([psnr(targets_np[b], inputs_np2[b]) for b in range(inputs_np2.shape[0])])
             ori_ssim2 = ssim(inputs2[:, 1:4, :, :], targets_rgb)
-            ori_vgg2 = criterion_vgg(inputs2[:, 1:4, :, :], targets_rgb).item()
+            ori_vgg2 = criterion_vgg(inputs2[:, 1:4, :, :], targets_rgb).sum().item()
 
             running_loss += val_loss
             running_psnr += val_psnr
