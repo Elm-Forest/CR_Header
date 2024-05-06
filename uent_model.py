@@ -288,7 +288,6 @@ class AttnCGAN_CR0(nn.Module):
         self.out_s2 = (OutConv(feature_c, out_channels))
         self.rrdb_blocks = nn.Sequential(*[RRDB(feature_c) for _ in range(num_rrdb)])
         self.outc = (OutConv(feature_c, out_channels))
-        self.lrelu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
 
     def forward(self, x11, x12, x2, cloudy):
         # Translate SAR
@@ -331,8 +330,8 @@ class AttnCGAN_CR0(nn.Module):
         out = x + _out
         stage2 = self.out_s2(out)
         # III. Enhance Output
-        out = self.rrdb_blocks(self.lrelu(out))
-        out = self.outc(self.lrelu(out))
+        out = self.rrdb_blocks(out)
+        out = self.outc(out)
         return [out, stage2, sar_trans, attn3, stage1, _out]
 
 
