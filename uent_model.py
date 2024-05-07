@@ -2,6 +2,7 @@
 from collections import OrderedDict
 
 from torch.nn import init
+from torch.utils.checkpoint import checkpoint
 
 from SPANet import conv3x3, SAM
 from cbam import CBAM
@@ -295,8 +296,8 @@ class AttnCGAN_CR0(nn.Module):
         x2 = torch.cat((sar_trans, x2), dim=1)
         x1 = torch.cat((x11, x12, cloudy), dim=1)
         # I. Feat Fusion
-        x11, x12, x13, x14, x15 = self.encoder_s2(x1)
-        x21, x22, x23, x24, x25 = self.encoder_sar(x2)
+        x11, x12, x13, x14, x15 = checkpoint(self.encoder_s2, x1)
+        x21, x22, x23, x24, x25 = checkpoint(self.encoder_sar, x2)
         x1 = self.fb1(x11, x21)
         x2 = self.fb2(x12, x22)
         x3 = self.fb3(x13, x23)
@@ -335,7 +336,9 @@ class AttnCGAN_CR0(nn.Module):
         out = x + _out
         stage2 = self.out_s2(out)
         # III. Enhance Output
-        out = self.rrdb_blocks(out)
+        for r in self.rrdb_blocks:
+            out = checkpoint(r, out)
+        # out = self.rrdb_blocks(out)
         out = self.outc(out)
         return [out, stage2, sar_trans, attn3, stage1, _out]
 

@@ -5,6 +5,7 @@ import torch
 from matplotlib import pyplot as plt
 from matplotlib.cm import jet
 from skimage.metrics import peak_signal_noise_ratio as psnr
+
 from MemoryNet import MemoryNet2
 from SPANet import SPANet
 from feature_detectors import get_cloud_cloudshadow_mask
@@ -188,7 +189,7 @@ if __name__ == '__main__':
     target_image = f'K:\dataset\selected_data_folder\s2_cloudFree\\{name}'
     sar_image = f'K:\dataset\selected_data_folder\s1\\{name}'
     meta_path = 'checkpoint/checkpoint_xiaorong_loss_4.pth'  # 22, 25 , 14,36
-    meta_path = 'checkpoint/checkpoint_best9514.pth'  # 22, 25 , 14,36
+    meta_path = 'checkpoint/checkpoint_psnr_3823_big.pth'  # 22, 25 , 14,36
     # meta_path = 'weights/tua_cr.pth'
     images = build_data(input_image, target_image, cloudy_image, sar_image, input_image2)
     inputs = images["input"]
@@ -217,7 +218,6 @@ if __name__ == '__main__':
         M = out[-3][:, 0, :, :].detach().cpu().squeeze(dim=0).squeeze(dim=0)
         stage2 = out[1].detach().cpu().squeeze(dim=0)
         stage1 = out[4].detach().cpu().squeeze(dim=0)
-        import torch.nn.functional as F
 
         # cloudy1 = F.relu(cloudy_ori[1, :, :] - cloudy_ori[1, :, :].mean())
         # cloudy1 = F.sigmoid(cloudy1) - 0.8
@@ -229,9 +229,15 @@ if __name__ == '__main__':
         plt.savefig('./M.png', dpi=600, bbox_inches='tight', pad_inches=0)
         plt.show()
         outputs = out[0]
-        sar_trans = out[-1]
-        sar_trans = sar_trans.cpu().squeeze(dim=0).detach().numpy()
+        _out = out[-1]
+        sar_trans = _out.cpu().squeeze(dim=0).detach().numpy()
+        _out = _out.sum(dim=1)
+        _out = _out.cpu().squeeze(dim=0).detach().numpy()
         # sar_trans = stage2.numpy()
+        plt.figure(figsize=(6, 6))
+        plt.imshow(_out)
+        plt.axis('off')  # 关闭坐标轴标号和刻度
+        plt.show()
     elif model_name == 'spa_gan':
         concatenated = torch.cat((inputs, inputs2, cloudy), dim=0)  # 假设这是另一种形式的输入
         M, fake_images = meta_learner(sar.to(device).unsqueeze(dim=0), cloudy.to(device).unsqueeze(dim=0))
