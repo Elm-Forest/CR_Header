@@ -161,8 +161,8 @@ for epoch in range(num_epochs):
 
         # Stage I : 5 + 5 = 10
         loss_sar = criterion_L1(out_sar, targets_rgb) * 5
-        loss_stage1_l1 = criterion_L1(out_stage1, targets) * 5
-        loss_stage1 = loss_sar + loss_stage1_l1
+        # loss_stage1_l1 = criterion_L1(out_stage1, targets) * 5
+        loss_stage1 = loss_sar
 
         # Stage II : 5 + 5 + 3 + 2 = 15
         loss_stage2_l1 = criterion_L1(out_stage2, targets[:, 1:4, :, :]) * 5

@@ -5,7 +5,7 @@ from torch.nn import init
 
 from SPANet import conv3x3, SAM
 from cbam import CBAM
-from partialconv2d import PartialBasicBlock
+from partialconv2d import PartialBasicBlock, thresholding
 from rrdb import RRDB
 from test_ import CompactBilinearPooling
 from unet_parts import *
@@ -327,7 +327,10 @@ class AttnCGAN_CR0(nn.Module):
         out = self.res_block7(out, attn3)
         out = self.res_block8(out, attn3)
         _out = self.res_block9(out, attn3)
-        out = x + _out
+        alpha = 0.5
+        mask = thresholding(attn3)
+        x = x - x * mask * alpha
+        out = x + _out * mask * alpha
         stage2 = self.out_s2(out)
         # III. Enhance Output
         out = self.rrdb_blocks(out)
