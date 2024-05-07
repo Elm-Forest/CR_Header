@@ -283,8 +283,8 @@ class AttnCGAN_CR0(nn.Module):
         self.res_block7 = PartialBasicBlock(feature_c, feature_c)
         self.res_block8 = PartialBasicBlock(feature_c, feature_c)
         self.res_block9 = PartialBasicBlock(feature_c, feature_c)
-        # self.res_block10 = PartialBasicBlock(feature_c, feature_c)
-        # self.res_block11 = PartialBasicBlock(feature_c, feature_c)
+        self.res_block10 = PartialBasicBlock(feature_c, feature_c)
+        self.res_block11 = PartialBasicBlock(feature_c, feature_c)
         self.out_s2 = (OutConv(feature_c, out_channels))
         self.rrdb_blocks = nn.Sequential(*[RRDB(feature_c) for _ in range(num_rrdb)])
         self.outc = (OutConv(feature_c, out_channels))
@@ -326,11 +326,13 @@ class AttnCGAN_CR0(nn.Module):
         attn3 = self.sam(cloudy)
         out = self.res_block7(out, attn3)
         out = self.res_block8(out, attn3)
-        _out = self.res_block9(out, attn3)
-        alpha = 0.5
-        mask = thresholding(attn3)
-        x = x - x * mask * alpha
-        out = x + _out * mask * alpha
+        out = self.res_block9(out, attn3)
+        out = self.res_block10(out)
+        _out = self.res_block11(out)
+        # alpha = 1.0
+        # mask = thresholding(attn3)
+        # x = x - x * mask * alpha
+        out = x + _out
         stage2 = self.out_s2(out)
         # III. Enhance Output
         out = self.rrdb_blocks(out)

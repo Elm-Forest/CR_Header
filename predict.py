@@ -189,7 +189,7 @@ if __name__ == '__main__':
     sar_image = f'K:\dataset\selected_data_folder\s1\\{name}'
     meta_path = 'checkpoint/checkpoint_xiaorong_loss_4.pth'  # 22, 25 , 14,36
     meta_path = 'checkpoint/checkpoint_best9514.pth'  # 22, 25 , 14,36
-    meta_path = 'weights/tua_cr.pth'
+    # meta_path = 'weights/tua_cr.pth'
     images = build_data(input_image, target_image, cloudy_image, sar_image, input_image2)
     inputs = images["input"]
     inputs2 = images["input2"]
