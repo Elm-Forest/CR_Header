@@ -186,7 +186,7 @@ for epoch in range(num_epochs):
 
         running_loss += loss.item()
         running_loss_rgb += loss_stage3_l1.item()
-        running_loss_stage1 += loss_stage1_l1.item()
+        running_loss_stage1 += 0  # loss_stage1_l1.item()
         running_loss_stage2 += loss_stage2_l1.item()
         running_loss_sar += loss_sar.item()
         running_loss_TV += loss_TV.item() * 100  # Scale = 100
@@ -209,8 +209,8 @@ for epoch in range(num_epochs):
         else:
             ori_ssim = ssim(inputs, targets_rgb)
             ori_ssim2 = ssim(inputs2, targets_rgb)
-            ori_vgg = criterion_vgg(inputs, targets_rgb).sum().item()  * 10
-            ori_vgg2 = criterion_vgg(inputs2, targets_rgb).sum().item()  * 10
+            ori_vgg = criterion_vgg(inputs, targets_rgb).sum().item() * 10
+            ori_vgg2 = criterion_vgg(inputs2, targets_rgb).sum().item() * 10
 
         running_ssim += batch_ssim
         running_psnr += batch_psnr
