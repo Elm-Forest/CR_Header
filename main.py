@@ -51,7 +51,7 @@ parser.add_argument('--use_sar', type=bool, default=True)
 parser.add_argument('--use_rgb', type=bool, default=True)
 parser.add_argument('--use_input2', type=bool, default=True)
 parser.add_argument('--load_weights', type=bool, default=True)
-parser.add_argument('--weights_path', type=str, default='checkpoint/checkpoint_best9514.pth')
+parser.add_argument('--weights_path', type=str, default='checkpoint/checkpoint_xiaorong_loss_30.pth')
 parser.add_argument('--weight_decay', type=float, default=0.0001)
 opts = parser.parse_args()
 
@@ -407,6 +407,6 @@ for epoch in range(num_epochs):
     meta_learner.train()
 
     if epoch % opts.save_freq == 0:
-        torch.save(meta_learner.state_dict(), os.path.join(opts.checkpoint, f'checkpoint_xiaorong_loss_{epoch}.pth'))
+        torch.save(meta_learner.state_dict(), os.path.join(opts.checkpoint, f'checkpoint_{epoch}.pth'))
 
 torch.save(meta_learner.state_dict(), opts.save_model_dir)

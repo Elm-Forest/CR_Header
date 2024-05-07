@@ -6,7 +6,7 @@ from torch.utils.checkpoint import checkpoint
 
 from SPANet import conv3x3, SAM
 from cbam import CBAM
-from partialconv2d import PartialBasicBlock, thresholding
+from partialconv2d import PartialBasicBlock
 from rrdb import RRDB
 from test_ import CompactBilinearPooling
 from unet_parts import *
@@ -152,9 +152,9 @@ class Sar_Translate(nn.Module):
 
     def forward(self, x):
         x = self.conv_in(x)
-        x = self.res_blocks(x)
-        x = self.conv_out(x)
-        return x
+        _x = self.res_blocks(x)
+        x = self.conv_out(_x)
+        return x, _x
 
 
 class AttnCGAN_CR(nn.Module):
@@ -289,10 +289,12 @@ class AttnCGAN_CR0(nn.Module):
         self.out_s2 = (OutConv(feature_c, out_channels))
         self.rrdb_blocks = nn.Sequential(*[RRDB(feature_c) for _ in range(num_rrdb)])
         self.outc = (OutConv(feature_c, out_channels))
+        self.conv1x1_1 = conv1x1(feature_c * 2, feature_c)
+        self.conv1x1_2 = conv1x1(feature_c * 2, feature_c)
 
     def forward(self, x11, x12, x2, cloudy):
         # Translate SAR
-        sar_trans = self.sar_trans(x2)
+        sar_trans, sar_feat = self.sar_trans(x2)
         x2 = torch.cat((sar_trans, x2), dim=1)
         x1 = torch.cat((x11, x12, cloudy), dim=1)
         # I. Feat Fusion
@@ -308,13 +310,15 @@ class AttnCGAN_CR0(nn.Module):
         x = self.up3(x, x2)
         x = self.up4(x, x1)
         stage1 = self.out_s1(x)
+        out = torch.cat((x, sar_feat), dim=1)
+        out = self.conv1x1_1(out)
         # II. Fix ROI
         cloudy = self.conv_in_attn(cloudy)
         attn1 = self.sam(cloudy)
         cloudy = F.relu(self.res_block_attn1(cloudy) * attn1 + cloudy)
         cloudy = F.relu(self.res_block_attn2(cloudy) * attn1 + cloudy)
         cloudy = F.relu(self.res_block_attn3(cloudy) * attn1 + cloudy)
-        out = self.res_block1(x, attn1)
+        out = self.res_block1(out, attn1)
         out = self.res_block2(out, attn1)
         out = self.res_block3(out, attn1)
         attn2 = self.sam(cloudy)
@@ -335,6 +339,8 @@ class AttnCGAN_CR0(nn.Module):
         # x = x - x * mask * alpha
         out = x + _out
         stage2 = self.out_s2(out)
+        out = torch.cat((out, sar_feat), dim=1)
+        out = self.conv1x1_2(out)
         # III. Enhance Output
         for r in self.rrdb_blocks:
             out = checkpoint(r, out)

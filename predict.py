@@ -182,14 +182,14 @@ def get_attention_mask(cloudy_path):
 # attn ROIs1158_spring_9_p562
 if __name__ == '__main__':
     model_name = 'unet'  # unet / mprnet / spa_gan
-    name = 'ROIs1158_spring_15_p392.tif'  # 113p167 40p40 ROIs1158_spring_15_p392
+    name = 'ROIs1158_spring_63_p830.tif'  # 113p167 40p40 ROIs1158_spring_15_p392
     input_image = f'K:/dataset/ensemble/dsen2/{name}'
     input_image2 = f'K:/dataset/ensemble/clf/{name}'
     cloudy_image = f'K:\dataset\selected_data_folder\s2_cloudy\\{name}'
     target_image = f'K:\dataset\selected_data_folder\s2_cloudFree\\{name}'
     sar_image = f'K:\dataset\selected_data_folder\s1\\{name}'
     meta_path = 'checkpoint/checkpoint_xiaorong_loss_4.pth'  # 22, 25 , 14,36
-    meta_path = 'checkpoint/checkpoint_psnr_3823_big.pth'  # 22, 25 , 14,36
+    meta_path = 'checkpoint/checkpoint_xiaorong_loss_30.pth'  # 22, 25 , 14,36
     # meta_path = 'weights/tua_cr.pth'
     images = build_data(input_image, target_image, cloudy_image, sar_image, input_image2)
     inputs = images["input"]
@@ -226,11 +226,12 @@ if __name__ == '__main__':
         plt.figure(figsize=(6, 6))
         plt.imshow(M)
         plt.axis('off')  # 关闭坐标轴标号和刻度
-        plt.savefig('./M.png', dpi=600, bbox_inches='tight', pad_inches=0)
+        # plt.savefig('./M.png', dpi=600, bbox_inches='tight', pad_inches=0)
         plt.show()
         outputs = out[0]
+        sar_trans = out[-2]
+        sar_trans = sar_trans.cpu().squeeze(dim=0).detach().numpy()
         _out = out[-1]
-        sar_trans = _out.cpu().squeeze(dim=0).detach().numpy()
         _out = _out.sum(dim=1)
         _out = _out.cpu().squeeze(dim=0).detach().numpy()
         # sar_trans = stage2.numpy()
