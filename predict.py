@@ -10,7 +10,7 @@ from MemoryNet import MemoryNet2
 from SPANet import SPANet
 from feature_detectors import get_cloud_cloudshadow_mask
 from ssim_tools import ssim
-from uent_model import AttnCGAN_CR0
+from uent_model import AttnCGAN_CR0, AttnCGAN_CR_no3
 
 device = torch.device("cuda:0")
 
@@ -109,7 +109,7 @@ def load_model(path, model_name):
     if model_name == 'mprnet':
         meta_learner = MemoryNet2(in_c=39, in_s1=2, n_feat=64, scale_unetfeats=32)
     elif model_name == 'unet':
-        meta_learner = AttnCGAN_CR0(2, 13, 3, ensemble_num=2 + 1, bilinear=True).to(device)
+        meta_learner = AttnCGAN_CR_no3(2, 13, 3, ensemble_num=2 + 1, bilinear=True).to(device)
     elif model_name == 'spa_gan':
         meta_learner = SPANet(2, 13, 3, 128).to(device)
     checkpoint = torch.load(path, map_location=torch.device('cpu'))
@@ -182,14 +182,15 @@ def get_attention_mask(cloudy_path):
 # attn ROIs1158_spring_9_p562
 if __name__ == '__main__':
     model_name = 'unet'  # unet / mprnet / spa_gan
-    name = 'ROIs1158_spring_63_p830.tif'  # 113p167 40p40 ROIs1158_spring_15_p392
+    name = 'ROIs1158_spring_15_p392.tif'  # 113p167 40p40 ROIs1158_spring_15_p392
     input_image = f'K:/dataset/ensemble/dsen2/{name}'
     input_image2 = f'K:/dataset/ensemble/clf/{name}'
     cloudy_image = f'K:\dataset\selected_data_folder\s2_cloudy\\{name}'
     target_image = f'K:\dataset\selected_data_folder\s2_cloudFree\\{name}'
     sar_image = f'K:\dataset\selected_data_folder\s1\\{name}'
     meta_path = 'checkpoint/checkpoint_xiaorong_loss_4.pth'  # 22, 25 , 14,36
-    meta_path = 'checkpoint/checkpoint_xiaorong_loss_30.pth'  # 22, 25 , 14,36
+    meta_path = 'checkpoint/checkpoint_9504_big.pth'  # 22, 25 , 14,36
+    meta_path = 'checkpoint/checkpoint_5.pth'
     # meta_path = 'weights/tua_cr.pth'
     images = build_data(input_image, target_image, cloudy_image, sar_image, input_image2)
     inputs = images["input"]
@@ -231,6 +232,7 @@ if __name__ == '__main__':
         outputs = out[0]
         sar_trans = out[-2]
         sar_trans = sar_trans.cpu().squeeze(dim=0).detach().numpy()
+        sar_trans = None
         _out = out[-1]
         _out = _out.sum(dim=1)
         _out = _out.cpu().squeeze(dim=0).detach().numpy()
