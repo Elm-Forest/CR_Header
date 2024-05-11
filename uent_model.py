@@ -369,7 +369,7 @@ class TUA_CR_DISCUSS(nn.Module):
         self.fb5 = Fusion_Blocks_Plus(2048 // factor, 1024 // factor, cuda=cuda)
         self.relu = nn.ReLU(inplace=True)
         self.out_s1 = (OutConv(64 // factor, in_channels_s2))
-        feature_c = 64 // factor
+        feature_c = 2 * 64 // factor
         self.conv_in_attn = nn.Sequential(
             conv3x3(in_channels_s2, feature_c),
             nn.ReLU(True),
@@ -392,8 +392,8 @@ class TUA_CR_DISCUSS(nn.Module):
         self.out_s2 = (OutConv(feature_c, out_channels))
         self.rrdb_blocks = nn.Sequential(*[RRDB(feature_c) for _ in range(num_rrdb)])
         self.outc = (OutConv(feature_c, out_channels))
-        self.conv1x1_1 = conv1x1(feature_c * 2, feature_c)
-        self.conv1x1_2 = conv1x1(feature_c * 2, feature_c)
+        # self.conv1x1_1 = conv1x1(feature_c * 2, feature_c)
+        # self.conv1x1_2 = conv1x1(feature_c * 2, feature_c)
 
     def forward(self, x2, cloudy):
         # Translate SAR
@@ -414,7 +414,6 @@ class TUA_CR_DISCUSS(nn.Module):
         x = self.up4(x, x1)
         stage1 = self.out_s1(x)
         out = torch.cat((x, sar_feat), dim=1)
-        out = self.conv1x1_1(out)
         # II. Fix ROI
         cloudy = self.conv_in_attn(cloudy)
         attn1 = self.sam(cloudy)
@@ -442,8 +441,8 @@ class TUA_CR_DISCUSS(nn.Module):
         # x = x - x * mask * alpha
         out = x + _out
         stage2 = self.out_s2(out)
-        out = torch.cat((out, sar_feat), dim=1)
-        out = self.conv1x1_2(out)
+        # out = torch.cat((out, sar_feat), dim=1)
+        # out = self.conv1x1_2(out)
         # III. Enhance Output
         for r in self.rrdb_blocks:
             out = checkpoint(r, out)
@@ -779,8 +778,8 @@ if __name__ == '__main__':
     s22 = torch.zeros((1, 13, 256, 256))
     cl = torch.zeros((1, 13, 256, 256))
     s1 = torch.zeros((1, 2, 256, 256))
-    unet = AttnCGAN_CR0(2, 13, 3, 3, bilinear=True, cuda=False)
+    unet = TUA_CR_DISCUSS(2, 13, 3, 1, bilinear=True, cuda=False)
     # output = unet(s21, s22, s1, cl)
-    # torch.save(unet.state_dict(), f'checkpoint_test.pth')
+    torch.save(unet.state_dict(), f'checkpoint_test.pth')
     generator_params = sum(p.numel() for p in unet.parameters())
     print(generator_params)
