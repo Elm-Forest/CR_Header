@@ -439,7 +439,7 @@ class TUA_CR_DISCUSS(nn.Module):
         # alpha = 1.0
         # mask = thresholding(attn3)
         # x = x - x * mask * alpha
-        out = x + _out
+        # out = x + _out
         stage2 = self.out_s2(out)
         # out = torch.cat((out, sar_feat), dim=1)
         # out = self.conv1x1_2(out)
