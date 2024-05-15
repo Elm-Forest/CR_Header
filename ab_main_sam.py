@@ -17,12 +17,12 @@ from dataset import SEN12MSCR_Dataset, get_filelists
 from focal_loss import Binary_FocalLoss
 from ssim_tools import ssim
 from tv_loss import TVLoss
-from uent_model import AttnCGAN_CR, TUA_CR_DISCUSS
+from uent_model import AttnCGAN_CR, AttnCGAN_CR0, AttnCGAN_CR_AB_SAM
 from unet_m import NestedUNet
 
 warnings.filterwarnings('ignore')
 parser = argparse.ArgumentParser()
-parser.add_argument('--batch_size', type=int, default=2, help='batch size used for training')
+parser.add_argument('--batch_size', type=int, default=3, help='batch size used for training')
 parser.add_argument('--inputs_dir', type=str, default='K:/dataset/ensemble/dsen2')
 parser.add_argument('--inputs_dir2', type=str, default='K:/dataset/ensemble/clf')
 parser.add_argument('--cloudy_dir', type=str, default='K:/dataset/selected_data_folder/s2_cloudy')
@@ -38,7 +38,7 @@ parser.add_argument('--epoch', type=int, default=40)
 parser.add_argument('--save_freq', type=int, default=1)
 parser.add_argument('--num_workers', type=int, default=0)
 parser.add_argument('--log_freq', type=int, default=10)
-parser.add_argument('--save_model_dir', type=str, default='./weights/discussion_tu_cr.pth',
+parser.add_argument('--save_model_dir', type=str, default='./weights/xiaorong_loss.pth',
                     help='directory used to store trained networks')
 parser.add_argument('--is_test', type=bool, default=False)
 parser.add_argument('--gpu_ids', type=str, default='0')
@@ -51,7 +51,7 @@ parser.add_argument('--use_sar', type=bool, default=True)
 parser.add_argument('--use_rgb', type=bool, default=True)
 parser.add_argument('--use_input2', type=bool, default=True)
 parser.add_argument('--load_weights', type=bool, default=True)
-parser.add_argument('--weights_path', type=str, default='checkpoint/checkpoint_xiaorong_no2_9.pth')
+parser.add_argument('--weights_path', type=str, default='checkpoint/checkpoint_xiaorong_loss_36.pth')
 parser.add_argument('--weight_decay', type=float, default=0.0001)
 opts = parser.parse_args()
 
@@ -80,7 +80,7 @@ if opts.use_sar and opts.use_input2 is False:
     meta_learner = AttnCGAN_CR(2, 13, 3, 1).to(device)
 elif opts.use_sar and opts.use_input2:
     print('create unet_new inc=26')
-    meta_learner = TUA_CR_DISCUSS(2, 13, 3, 1, bilinear=True).to(device)
+    meta_learner = AttnCGAN_CR_AB_SAM(2, 13, 3, 3, bilinear=True).to(device)
 else:
     meta_learner = NestedUNet(in_channels=opts.input_channels, out_channels=output_channels).to(device)
 
@@ -150,7 +150,7 @@ for epoch in range(num_epochs):
             sars = images["sar"].to(device)
             inputs2 = images["input2"].to(device)
             # concatenated = torch.cat((inputs, inputs2), dim=1)
-            outputs = meta_learner(sars, cloudy)
+            outputs = meta_learner(inputs, inputs2, sars, cloudy)
         else:
             outputs = meta_learner(inputs)
         outputs, out_stage2, out_sar, out_attn, out_stage1 = outputs[0], outputs[1], outputs[2], outputs[3], outputs[4]
@@ -298,7 +298,7 @@ for epoch in range(num_epochs):
             elif opts.use_sar is not None and opts.use_input2 is not None:
                 sars = images["sar"].to(device)
                 inputs2 = images["input2"].to(device)
-                outputs = meta_learner(sars, cloudy)
+                outputs = meta_learner(inputs, inputs2, sars, cloudy)
             else:
                 outputs = meta_learner(inputs)
             outputs = outputs[0]
@@ -407,6 +407,6 @@ for epoch in range(num_epochs):
     meta_learner.train()
 
     if epoch % opts.save_freq == 0:
-        torch.save(meta_learner.state_dict(), os.path.join(opts.checkpoint, f'checkpoint_discuss_{epoch}.pth'))
+        torch.save(meta_learner.state_dict(), os.path.join(opts.checkpoint, f'checkpoint_xiaorong_sam_{epoch}.pth'))
 
 torch.save(meta_learner.state_dict(), opts.save_model_dir)
