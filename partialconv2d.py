@@ -131,7 +131,8 @@ class PartialBasicBlock(nn.Module):
     def __init__(self, inplanes, planes, stride=1):
         super(PartialBasicBlock, self).__init__()
         self.conv1 = partial_conv3x3(inplanes, planes, stride)
-        self.relu = nn.ReLU(inplace=True)
+        # self.relu = nn.ReLU(inplace=True)
+        self.lrelu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
         self.conv2 = partial_conv3x3(planes, planes)
 
     def forward(self, x, mask=None):
@@ -139,8 +140,8 @@ class PartialBasicBlock(nn.Module):
         if mask is not None:
             mask = thresholding(mask)
         out = self.conv1(x, mask)
-        out = self.relu(out)
+        out = self.lrelu(out)
         out = self.conv2(out, mask)
         out += residual
-        out = self.relu(out)
+        out = self.lrelu(out)
         return out
