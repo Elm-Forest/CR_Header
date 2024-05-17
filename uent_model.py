@@ -375,17 +375,13 @@ class AttnCGAN_CR0(nn.Module):
         self.res_block1 = PartialBasicBlock(feature_c, feature_c)
         self.res_block2 = PartialBasicBlock(feature_c, feature_c)
         self.res_block3 = PartialBasicBlock(feature_c, feature_c)
-        self.res_block_add_1 = PartialBasicBlock(feature_c, feature_c)
-
         self.res_block4 = PartialBasicBlock(feature_c, feature_c)
         self.res_block5 = PartialBasicBlock(feature_c, feature_c)
         self.res_block6 = PartialBasicBlock(feature_c, feature_c)
-        self.res_block_add_2 = PartialBasicBlock(feature_c, feature_c)
 
         self.res_block7 = PartialBasicBlock(feature_c, feature_c)
         self.res_block8 = PartialBasicBlock(feature_c, feature_c)
         self.res_block9 = PartialBasicBlock(feature_c, feature_c)
-        self.res_block_add_3 = PartialBasicBlock(feature_c, feature_c)
 
         self.res_block10 = PartialBasicBlock(feature_c, feature_c)
         self.res_block11 = PartialBasicBlock(feature_c, feature_c)
@@ -427,7 +423,6 @@ class AttnCGAN_CR0(nn.Module):
         out = self.res_block1(out, attn1)
         out = self.res_block2(out, attn1)
         out = self.res_block3(out, attn1)
-        out = self.res_block_add_1(out, attn1)
         out += x
 
         attn2 = self.sam(cloudy)
@@ -437,14 +432,12 @@ class AttnCGAN_CR0(nn.Module):
         out = self.res_block4(out, attn2)
         out = self.res_block5(out, attn2)
         out = self.res_block6(out, attn2)
-        out = self.res_block_add_2(out, attn1)
         out += x
 
         attn3 = self.sam(cloudy)
         out = self.res_block7(out, attn3)
         out = self.res_block8(out, attn3)
         out = self.res_block9(out, attn3)
-        out = self.res_block_add_3(out, attn1)
         out = self.res_block10(out)
         _out = self.res_block11(out)
         # alpha = 1.0
