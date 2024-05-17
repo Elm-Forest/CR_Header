@@ -132,7 +132,7 @@ class PartialBasicBlock(nn.Module):
         super(PartialBasicBlock, self).__init__()
         self.conv1 = partial_conv3x3(inplanes, planes, stride)
         # self.relu = nn.ReLU(inplace=True)
-        self.lrelu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
+        self.lrelu = nn.LeakyReLU(negative_slope=0.2, inplace=False)
         self.conv2 = partial_conv3x3(planes, planes)
 
     def forward(self, x, mask=None):
