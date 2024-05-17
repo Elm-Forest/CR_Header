@@ -385,7 +385,7 @@ class AttnCGAN_CR0(nn.Module):
         self.res_block7 = PartialBasicBlock(feature_c, feature_c)
         self.res_block8 = PartialBasicBlock(feature_c, feature_c)
         self.res_block9 = PartialBasicBlock(feature_c, feature_c)
-        self.res_block_add_10 = PartialBasicBlock(feature_c, feature_c)
+        self.res_block_add_3 = PartialBasicBlock(feature_c, feature_c)
 
         self.res_block10 = PartialBasicBlock(feature_c, feature_c)
         self.res_block11 = PartialBasicBlock(feature_c, feature_c)
