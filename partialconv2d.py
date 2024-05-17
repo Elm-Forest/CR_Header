@@ -137,8 +137,8 @@ class PartialBasicBlock(nn.Module):
 
     def forward(self, x, mask=None):
         residual = x
-        if mask is not None:
-            mask = thresholding(mask)
+        # if mask is not None:
+        #     mask = thresholding(mask)
         out = self.conv1(x, mask)
         out = self.lrelu(out)
         out = self.conv2(out, mask)

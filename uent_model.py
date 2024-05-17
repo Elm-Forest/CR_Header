@@ -142,7 +142,7 @@ class Sar_Translation(nn.Module):
 
 
 class Sar_Translate(nn.Module):
-    def __init__(self, in_channels_sar, out_channels, feat=32, num_block=16):
+    def __init__(self, in_channels_sar, out_channels, feat=32, num_block=18):
         super(Sar_Translate, self).__init__()
         self.conv_in = conv3x3(in_channels_sar, feat)
         self.res_blocks = nn.Sequential(
@@ -245,6 +245,7 @@ class AttnCGAN_CR(nn.Module):
         out = self.outc(out)
         return [out, t_rgb, sar_trans, attn3]
 
+
 class AttnCGAN_CR_OLD(nn.Module):
     def __init__(self, in_channels_sar=2, in_channels_s2=13, out_channels=3, ensemble_num=2, bilinear=True,
                  feature_c=32, num_rrdb=4, cuda=True):
@@ -340,6 +341,8 @@ class AttnCGAN_CR_OLD(nn.Module):
         # out = self.rrdb_blocks(out)
         out = self.outc(out)
         return [out, stage2, sar_trans, attn3, stage1, _out]
+
+
 class AttnCGAN_CR0(nn.Module):
     def __init__(self, in_channels_sar=2, in_channels_s2=13, out_channels=3, ensemble_num=2, bilinear=True,
                  feature_c=32, num_rrdb=12, cuda=True):
@@ -372,18 +375,26 @@ class AttnCGAN_CR0(nn.Module):
         self.res_block1 = PartialBasicBlock(feature_c, feature_c)
         self.res_block2 = PartialBasicBlock(feature_c, feature_c)
         self.res_block3 = PartialBasicBlock(feature_c, feature_c)
+        self.res_block_add_1 = PartialBasicBlock(feature_c, feature_c)
+
         self.res_block4 = PartialBasicBlock(feature_c, feature_c)
         self.res_block5 = PartialBasicBlock(feature_c, feature_c)
         self.res_block6 = PartialBasicBlock(feature_c, feature_c)
+        self.res_block_add_2 = PartialBasicBlock(feature_c, feature_c)
+
         self.res_block7 = PartialBasicBlock(feature_c, feature_c)
         self.res_block8 = PartialBasicBlock(feature_c, feature_c)
         self.res_block9 = PartialBasicBlock(feature_c, feature_c)
+        self.res_block_add_10 = PartialBasicBlock(feature_c, feature_c)
+
         self.res_block10 = PartialBasicBlock(feature_c, feature_c)
         self.res_block11 = PartialBasicBlock(feature_c, feature_c)
         self.out_s2 = (OutConv(feature_c, out_channels))
         self.rrdb_blocks = nn.Sequential(*[RRDB(feature_c) for _ in range(num_rrdb)])
         self.outc = (OutConv(feature_c, out_channels))
+        self.cbam1 = CBAM(feature_c * 2, no_spatial=False)
         self.conv1x1_1 = conv1x1(feature_c * 2, feature_c)
+        self.cbam2 = CBAM(feature_c * 2, no_spatial=False)
         self.conv1x1_2 = conv1x1(feature_c * 2, feature_c)
 
     def forward(self, x11, x12, x2, cloudy):
@@ -405,6 +416,7 @@ class AttnCGAN_CR0(nn.Module):
         x = self.up4(x, x1)
         stage1 = self.out_s1(x)
         out = torch.cat((x, sar_feat), dim=1)
+        out = self.cbam1(out)
         out = self.conv1x1_1(out)
         # II. Fix ROI
         cloudy = self.conv_in_attn(cloudy)
@@ -415,6 +427,9 @@ class AttnCGAN_CR0(nn.Module):
         out = self.res_block1(out, attn1)
         out = self.res_block2(out, attn1)
         out = self.res_block3(out, attn1)
+        out = self.self.res_block_add_1(out, attn1)
+        out += x
+
         attn2 = self.sam(cloudy)
         cloudy = F.relu(self.res_block_attn1(cloudy) * attn2 + cloudy)
         cloudy = F.relu(self.res_block_attn2(cloudy) * attn2 + cloudy)
@@ -422,10 +437,14 @@ class AttnCGAN_CR0(nn.Module):
         out = self.res_block4(out, attn2)
         out = self.res_block5(out, attn2)
         out = self.res_block6(out, attn2)
+        out = self.self.res_block_add_2(out, attn1)
+        out += x
+
         attn3 = self.sam(cloudy)
         out = self.res_block7(out, attn3)
         out = self.res_block8(out, attn3)
         out = self.res_block9(out, attn3)
+        out = self.self.res_block_add_3(out, attn1)
         out = self.res_block10(out)
         _out = self.res_block11(out)
         # alpha = 1.0
@@ -434,6 +453,7 @@ class AttnCGAN_CR0(nn.Module):
         out = x + _out
         stage2 = self.out_s2(out)
         out = torch.cat((out, sar_feat), dim=1)
+        out = self.cbam2(out)
         out = self.conv1x1_2(out)
         # III. Enhance Output
         for r in self.rrdb_blocks:
@@ -539,6 +559,7 @@ class AttnCGAN_CR_AB_SAM(nn.Module):
         out = self.outc(out)
         return [out, stage2, sar_trans, attn3, stage1, _out]
 
+
 class AttnCGAN_CR_AB_SAM_NO_CHECK(nn.Module):
     def __init__(self, in_channels_sar=2, in_channels_s2=13, out_channels=3, ensemble_num=2, bilinear=True,
                  feature_c=32, num_rrdb=4, cuda=True):
@@ -633,6 +654,8 @@ class AttnCGAN_CR_AB_SAM_NO_CHECK(nn.Module):
         # out = self.rrdb_blocks(out)
         out = self.outc(out)
         return [out, stage2, sar_trans, attn3, stage1, _out]
+
+
 class TUA_CR_DISCUSS(nn.Module):
     def __init__(self, in_channels_sar=2, in_channels_s2=13, out_channels=3, ensemble_num=2, bilinear=True,
                  feature_c=32, num_rrdb=12, cuda=True):
